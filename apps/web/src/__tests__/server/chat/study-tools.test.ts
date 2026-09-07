@@ -5,6 +5,7 @@ import {
   maxQuestionsForBudget,
   buildStudyToolsAddendum,
 } from "@/server/chat/study-tools";
+import { MAX_QUIZ_QUESTIONS } from "@/lib/quiz";
 
 describe("studyTools", () => {
   it("registers showQuiz with the quiz schema and no execute", () => {
@@ -59,7 +60,7 @@ describe("producedRenderableQuiz", () => {
           invalid: true,
           input: {
             quiz_title: "T",
-            questions: Array(7).fill({
+            questions: Array(MAX_QUIZ_QUESTIONS + 2).fill({
               question: "Q?",
               options: ["A", "B"],
               correct_index: 0,
@@ -135,12 +136,21 @@ describe("producedRenderableQuiz", () => {
 
 describe("maxQuestionsForBudget", () => {
   it("allows the full quiz when the budget is roomy", () => {
-    expect(maxQuestionsForBudget(2000)).toBe(5);
-    expect(maxQuestionsForBudget(4000)).toBe(5);
-    expect(maxQuestionsForBudget(1000)).toBe(5);
+    // 2000 is the default chatbot reply limit and 4000 is the ceiling
+    // `clampMaxTokens` allows, so both must fit a full-length quiz.
+    expect(maxQuestionsForBudget(2000)).toBe(MAX_QUIZ_QUESTIONS);
+    expect(maxQuestionsForBudget(4000)).toBe(MAX_QUIZ_QUESTIONS);
+  });
+
+  it("never exceeds the schema ceiling however roomy the budget", () => {
+    expect(maxQuestionsForBudget(100_000)).toBe(MAX_QUIZ_QUESTIONS);
   });
 
   it("scales down as the reply limit tightens", () => {
+    // 120 tokens of overhead plus 150 per question: ten fit at 1620, not 1619.
+    expect(maxQuestionsForBudget(1620)).toBe(10);
+    expect(maxQuestionsForBudget(1619)).toBe(9);
+    expect(maxQuestionsForBudget(1000)).toBe(5);
     expect(maxQuestionsForBudget(800)).toBe(4);
     expect(maxQuestionsForBudget(500)).toBe(2);
   });
@@ -157,7 +167,7 @@ describe("buildStudyToolsAddendum", () => {
   it("tells the model the question budget", () => {
     expect(buildStudyToolsAddendum(500, true)).toContain("at most 2 questions");
     expect(buildStudyToolsAddendum(2000, true)).toContain(
-      "at most 5 questions",
+      `at most ${MAX_QUIZ_QUESTIONS} questions`,
     );
   });
 

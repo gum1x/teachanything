@@ -2,7 +2,7 @@ import { z } from "zod";
 import { mcQuestionSchema, type MCQuestion } from "@/lib/questions";
 
 /** Most questions a quiz may carry. Also the ceiling `repairQuiz` trims to. */
-export const MAX_QUIZ_QUESTIONS = 5;
+export const MAX_QUIZ_QUESTIONS = 10;
 
 /** Longest quiz title. See the note on `quizSchema.quiz_title`. */
 export const MAX_QUIZ_TITLE_LENGTH = 200;

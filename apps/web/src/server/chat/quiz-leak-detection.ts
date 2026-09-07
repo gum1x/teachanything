@@ -20,11 +20,13 @@ const MARKERS = ["{", "```", "showQuiz("] as const;
 export const MARKER_LOOKBACK = "[showQuiz(".length - 1;
 
 /**
- * Hard cap on held text. A 5-question quiz serializes to ~2KB, so anything past
- * this is not the leak we're looking for; bail out rather than withhold an
- * unbounded stretch of a real answer.
+ * Hard cap on held text. A full-length quiz (`MAX_QUIZ_QUESTIONS`, ten
+ * questions) serializes to ~4KB, so anything past this is not the leak we're
+ * looking for; bail out rather than withhold an unbounded stretch of a real
+ * answer. Sized at roughly four times a full quiz so a verbose, pretty-printed
+ * leak still fits.
  */
-export const MAX_HELD_CHARS = 8_000;
+export const MAX_HELD_CHARS = 16_000;
 
 /**
  * How far past `showQuiz(` to wait for `quiz_title` / `questions` before

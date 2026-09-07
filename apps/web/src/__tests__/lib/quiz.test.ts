@@ -1,6 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { asSchema } from "ai";
 import {
+  MAX_QUIZ_QUESTIONS,
   quizSchema,
   isRenderableQuiz,
   isValidQuizAnswers,
@@ -76,7 +77,28 @@ describe("quizSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects more than 5 questions", () => {
+  it("caps a quiz at ten questions", () => {
+    // Pinned on purpose: the ceiling is a product decision (professors asked
+    // for 10-question quizzes), not an implementation detail, so a silent
+    // change here should fail a test.
+    expect(MAX_QUIZ_QUESTIONS).toBe(10);
+  });
+
+  it("accepts a quiz with exactly the maximum number of questions", () => {
+    const q = {
+      question: "Q?",
+      options: ["A", "B"],
+      correct_index: 0,
+      explanation: "x",
+    };
+    const result = quizSchema.safeParse({
+      quiz_title: "Full length",
+      questions: Array(MAX_QUIZ_QUESTIONS).fill(q),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects more questions than the ceiling allows", () => {
     const q = {
       question: "Q?",
       options: ["A", "B"],
@@ -85,7 +107,7 @@ describe("quizSchema", () => {
     };
     const result = quizSchema.safeParse({
       quiz_title: "Too long",
-      questions: Array(6).fill(q),
+      questions: Array(MAX_QUIZ_QUESTIONS + 1).fill(q),
     });
     expect(result.success).toBe(false);
   });
@@ -277,9 +299,11 @@ describe("repairQuiz", () => {
   it("trims a quiz with more questions than the schema allows", () => {
     const repaired = repairQuiz({
       quiz_title: "T",
-      questions: [1, 2, 3, 4, 5, 6, 7].map((i) => question(i)),
+      questions: Array.from({ length: MAX_QUIZ_QUESTIONS + 2 }, (_, i) =>
+        question(i + 1),
+      ),
     });
-    expect(repaired?.questions).toHaveLength(5);
+    expect(repaired?.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
     expect(repaired?.questions[0]?.question).toBe("Q1?");
   });
 
@@ -377,9 +401,11 @@ describe("repairQuiz", () => {
     it("still repairs a complete-but-oversized JSON string", () => {
       const oversized = JSON.stringify({
         quiz_title: "T",
-        questions: [1, 2, 3, 4, 5, 6].map((i) => question(i)),
+        questions: Array.from({ length: MAX_QUIZ_QUESTIONS + 1 }, (_, i) =>
+          question(i + 1),
+        ),
       });
-      expect(repairQuiz(oversized)?.questions).toHaveLength(5);
+      expect(repairQuiz(oversized)?.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
     });
   });
 });
@@ -536,10 +562,12 @@ describe("parseQuizFromText", () => {
     it("trims a leak that runs past the question ceiling", () => {
       const quiz = {
         quiz_title: "Gender Theory and Barbie",
-        questions: [1, 2, 3, 4, 5, 6].map(question),
+        questions: Array.from({ length: MAX_QUIZ_QUESTIONS + 1 }, (_, i) =>
+          question(i + 1),
+        ),
       };
       const recovered = parseQuizFromText(JSON.stringify(quiz));
-      expect(recovered?.questions).toHaveLength(5);
+      expect(recovered?.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
       expect(recovered?.quiz_title).toBe("Gender Theory and Barbie");
     });
 

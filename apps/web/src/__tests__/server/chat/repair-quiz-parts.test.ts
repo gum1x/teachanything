@@ -3,6 +3,7 @@ import {
   repairQuizToolParts,
   closeTruncatedQuizInputs,
 } from "@/server/chat/repair-quiz-parts";
+import { MAX_QUIZ_QUESTIONS } from "@/lib/quiz";
 
 type Chunk = Record<string, unknown>;
 
@@ -66,7 +67,9 @@ describe("repairQuizToolParts", () => {
         toolName: "showQuiz",
         input: {
           quiz_title: "T",
-          questions: [1, 2, 3, 4, 5, 6, 7].map(question),
+          questions: Array.from({ length: MAX_QUIZ_QUESTIONS + 2 }, (_, i) =>
+            question(i + 1),
+          ),
         },
         errorText: "Type validation failed",
       },
@@ -74,7 +77,7 @@ describe("repairQuizToolParts", () => {
     ]);
     expect(out).toHaveLength(1);
     expect((out[0]!.input as { questions: unknown[] }).questions).toHaveLength(
-      5,
+      MAX_QUIZ_QUESTIONS,
     );
   });
 

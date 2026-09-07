@@ -1,5 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { recoverLeakedQuiz } from "@/server/chat/recover-quiz";
+import { MAX_QUIZ_QUESTIONS } from "@/lib/quiz";
+import { MAX_HELD_CHARS } from "@/server/chat/quiz-leak-detection";
 
 type Chunk = Record<string, unknown>;
 
@@ -344,13 +346,15 @@ describe("a leak that needs repairing", () => {
         }
       | undefined;
 
-  it("recovers a six-question leak by trimming to the ceiling", async () => {
-    const leak = pseudoCall([1, 2, 3, 4, 5, 6].map(question));
+  it("recovers an over-long leak by trimming to the ceiling", async () => {
+    const leak = pseudoCall(
+      Array.from({ length: MAX_QUIZ_QUESTIONS + 1 }, (_, i) => question(i + 1)),
+    );
     const out = await pump(textBlock("t1", deltasOf(leak)));
 
     const part = quizPartOf(out);
     expect(part?.toolName).toBe("showQuiz");
-    expect(part?.input.questions).toHaveLength(5);
+    expect(part?.input.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
     // The answer key must never reach the student as text.
     expect(textOf(out)).toBe("");
     expect(textOf(out)).not.toContain("correct_index");
@@ -542,5 +546,81 @@ describe("placeholder while a leaked quiz is buffering", () => {
     const available = out.find((c) => c.type === "tool-input-available");
     const input = available?.input as { questions: unknown[] };
     expect(input.questions.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * `MAX_HELD_CHARS` is derived from the size of a full-length quiz, so it has to
+ * move with `MAX_QUIZ_QUESTIONS`. A ten-question leak written verbosely and
+ * pretty-printed runs to ~9KB; the 8KB cap that fit five questions abandoned
+ * such a leak mid-stream, and since the skeleton was already up by then the
+ * student saw "could not be built" instead of the quiz.
+ */
+describe("held-text cap", () => {
+  const deltasOf = (text: string, size: number) => {
+    const deltas: string[] = [];
+    for (let i = 0; i < text.length; i += size)
+      deltas.push(text.slice(i, i + size));
+    return deltas;
+  };
+
+  const textOf = (chunks: Chunk[]) =>
+    chunks
+      .filter((c) => c.type === "text-delta")
+      .map((c) => c.delta)
+      .join("");
+
+  const verboseQuestion = (i: number) => ({
+    question: `Question ${i + 1}: which of the following best characterises the argument the assigned chapter makes about gender as a repeated, socially enforced performance rather than a fixed inner essence?`,
+    options: [
+      "That gender is a stable biological given that social norms merely describe after the fact",
+      "That gender is produced through the stylised repetition of acts, so it is constituted by what it appears to express",
+      "That gender is chosen freely each morning by an autonomous subject who stands outside of norms",
+      "That gender is an ideological illusion with no bearing on lived embodiment or institutions",
+    ],
+    correct_index: 1,
+    explanation: `The chapter argues that the repetition of gendered acts over time produces the appearance of an inner core; question ${i + 1} checks whether the distinction between expressing and constituting gender has landed.`,
+  });
+
+  it("recovers a verbose, pretty-printed full-length leak", async () => {
+    const questions = Array.from({ length: MAX_QUIZ_QUESTIONS }, (_, i) =>
+      verboseQuestion(i),
+    );
+    const leak = `[showQuiz(quiz_title="Gender as Performance", questions=${JSON.stringify(
+      questions,
+      null,
+      2,
+    )})]`;
+    // The regression this guards: a realistic ten-question leak is past the
+    // 8KB cap that sized five questions, and must still sit under the current one.
+    expect(leak.length).toBeGreaterThan(8_000);
+    expect(leak.length).toBeLessThan(MAX_HELD_CHARS);
+
+    const out = await pump(textBlock("t1", deltasOf(leak, 17)));
+
+    const part = out.find((c) => c.type === "tool-input-available") as
+      | { input: { questions: unknown[] } }
+      | undefined;
+    expect(part?.input.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
+    expect(out.map((c) => c.type)).not.toContain("tool-output-error");
+    // The answer key must never reach the student as text.
+    expect(textOf(out)).toBe("");
+  });
+
+  it("releases a JSON block that outgrows the cap instead of withholding it", async () => {
+    // A non-quiz JSON answer opens with a quoted key, so `stillPlausible` never
+    // rules it out: the cap is what lets it through before the block ends.
+    const block = `{"entries": ${JSON.stringify(
+      Array.from({ length: 2_000 }, (_, i) => ({ id: i, label: `item ${i}` })),
+    )}}`;
+    expect(block.length).toBeGreaterThan(MAX_HELD_CHARS);
+
+    const out = await pump(textBlock("t1", deltasOf(block, 500)));
+
+    const types = out.map((c) => c.type);
+    expect(types).not.toContain("tool-input-start");
+    expect(types).not.toContain("tool-output-error");
+    expect(textOf(out)).toBe(block);
+    expect(out.filter((c) => c.type === "text-end")).toHaveLength(1);
   });
 });

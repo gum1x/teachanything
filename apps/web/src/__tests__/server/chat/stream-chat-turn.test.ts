@@ -15,6 +15,7 @@ import { repairQuizToolParts } from "@/server/chat/repair-quiz-parts";
 import { recoverLeakedQuiz } from "@/server/chat/recover-quiz";
 import { assistantMessageForDb } from "@/lib/chat/ui-messages";
 import { isRetrievalToolPart } from "@/lib/retrieval-tool-names";
+import { MAX_QUIZ_QUESTIONS } from "@/lib/quiz";
 
 type Chunk = InferUIMessageChunk<StudyUIMessage>;
 type Step = {
@@ -212,7 +213,7 @@ describe("streamChat turn semantics", () => {
 
   it("renders a leaked quiz as a tool part and never as an answer key", async () => {
     const leak = `Here are 5 questions on the gender theory chapter.\n\n[showQuiz(quiz_title="Gender Theory and Barbie", questions=${JSON.stringify(
-      [1, 2, 3, 4, 5, 6].map((i) => ({
+      Array.from({ length: MAX_QUIZ_QUESTIONS + 1 }, (_, i) => ({
         question: `Q${i}: what does Barbie stage about gender?`,
         options: ["A", "B", "C", "D"],
         answer: "B",
@@ -225,7 +226,7 @@ describe("streamChat turn semantics", () => {
       | { input: { questions: unknown[] } }
       | undefined;
     expect(quiz).toBeDefined();
-    expect(quiz!.input.questions).toHaveLength(5); // trimmed to the ceiling
+    expect(quiz!.input.questions).toHaveLength(MAX_QUIZ_QUESTIONS); // trimmed to the ceiling
     expect(r.content).toContain("Here are 5 questions");
     expect(r.content).not.toContain("showQuiz(");
     expect(r.content).not.toContain("explanation");
