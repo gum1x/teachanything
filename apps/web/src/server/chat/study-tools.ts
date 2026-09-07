@@ -20,7 +20,13 @@ export const studyTools = {
   }),
 } as const;
 
-/** Rough output cost of one generated question: 4 options plus an explanation. */
+/**
+ * Rough output cost of one generated question: 4 options plus an explanation.
+ * Deliberately at the wordy end. Measured with js-tiktoken (cl100k and o200k
+ * agree) on 2026-09-07: ~120 tokens for a typically worded question and ~155
+ * for a wordy one, so a full ten-question quiz costs ~1200-1560 tokens against
+ * the 1620 this formula budgets and the 2000-token default reply limit.
+ */
 const TOKENS_PER_QUESTION = 150;
 
 /** Output tokens to leave for the quiz title and JSON scaffolding. */

@@ -34,6 +34,21 @@ function textBlock(id: string, deltas: string[]): Chunk[] {
   ];
 }
 
+/** Every text delta in `chunks`, joined: what the student would have read. */
+const textOf = (chunks: Chunk[]) =>
+  chunks
+    .filter((c) => c.type === "text-delta")
+    .map((c) => c.delta)
+    .join("");
+
+/** Split the way a leak really streams: many small deltas. */
+const deltasOf = (text: string, size = 17) => {
+  const deltas: string[] = [];
+  for (let i = 0; i < text.length; i += size)
+    deltas.push(text.slice(i, i + size));
+  return deltas;
+};
+
 const quiz = {
   quiz_title: "Photosynthesis",
   questions: [
@@ -189,12 +204,6 @@ describe("recoverLeakedQuiz", () => {
   describe("leak after a prose preamble", () => {
     const preamble = "Here are some quiz questions for you.\n\n";
 
-    const textOf = (chunks: Chunk[]) =>
-      chunks
-        .filter((c) => c.type === "text-delta")
-        .map((c) => c.delta)
-        .join("");
-
     it("recovers a JSON quiz that follows prose in the same block", async () => {
       const out = await pump(textBlock("t1", [preamble, JSON.stringify(quiz)]));
       expect(out.at(-1)).toMatchObject({
@@ -312,12 +321,6 @@ describe("recoverLeakedQuiz", () => {
  * A leak must now recover on exactly the terms a native tool call does.
  */
 describe("a leak that needs repairing", () => {
-  const textOf = (chunks: Chunk[]) =>
-    chunks
-      .filter((c) => c.type === "text-delta")
-      .map((c) => c.delta)
-      .join("");
-
   const question = (i: number) => ({
     question: `Q${i}: how does Barbie stage gender as performance?`,
     options: ["A", "B", "C", "D"],
@@ -329,14 +332,6 @@ describe("a leak that needs repairing", () => {
     `[showQuiz(quiz_title="Gender Theory and Barbie", questions=${JSON.stringify(
       questions,
     )})]`;
-
-  /** Split the way a leak really streams: many small deltas. */
-  const deltasOf = (text: string, size = 17) => {
-    const deltas: string[] = [];
-    for (let i = 0; i < text.length; i += size)
-      deltas.push(text.slice(i, i + size));
-    return deltas;
-  };
 
   const quizPartOf = (out: Chunk[]) =>
     out.find((c) => c.type === "tool-input-available") as
@@ -480,10 +475,7 @@ describe("placeholder while a leaked quiz is buffering", () => {
       textBlock("t1", [PREAMBLE, leak.slice(0, 700), leak.slice(700)]),
     );
 
-    const text = out
-      .filter((c) => c.type === "text-delta")
-      .map((c) => c.delta as string)
-      .join("");
+    const text = textOf(out);
     expect(text).toContain("Here are 5 multiple-choice questions");
     // No part of the leak may reach the screen as prose.
     expect(text).not.toContain("showQuiz");
@@ -521,10 +513,7 @@ describe("placeholder while a leaked quiz is buffering", () => {
     expect(types).toContain("tool-output-error");
     expect(types).not.toContain("tool-input-available");
 
-    const text = out
-      .filter((c) => c.type === "text-delta")
-      .map((c) => c.delta as string)
-      .join("");
+    const text = textOf(out);
     expect(text).toContain("Here are 5 multiple-choice questions");
     expect(text).not.toContain("correct_index");
     expect(text).not.toContain("showQuiz");
@@ -557,19 +546,6 @@ describe("placeholder while a leaked quiz is buffering", () => {
  * student saw "could not be built" instead of the quiz.
  */
 describe("held-text cap", () => {
-  const deltasOf = (text: string, size: number) => {
-    const deltas: string[] = [];
-    for (let i = 0; i < text.length; i += size)
-      deltas.push(text.slice(i, i + size));
-    return deltas;
-  };
-
-  const textOf = (chunks: Chunk[]) =>
-    chunks
-      .filter((c) => c.type === "text-delta")
-      .map((c) => c.delta)
-      .join("");
-
   const verboseQuestion = (i: number) => ({
     question: `Question ${i + 1}: which of the following best characterises the argument the assigned chapter makes about gender as a repeated, socially enforced performance rather than a fixed inner essence?`,
     options: [

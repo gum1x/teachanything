@@ -20,11 +20,16 @@ const MARKERS = ["{", "```", "showQuiz("] as const;
 export const MARKER_LOOKBACK = "[showQuiz(".length - 1;
 
 /**
- * Hard cap on held text. A full-length quiz (`MAX_QUIZ_QUESTIONS`, ten
- * questions) serializes to ~4KB, so anything past this is not the leak we're
- * looking for; bail out rather than withhold an unbounded stretch of a real
- * answer. Sized at roughly four times a full quiz so a verbose, pretty-printed
- * leak still fits.
+ * Hard cap on held text: anything past this is not the leak we're looking for,
+ * so bail out rather than withhold an unbounded stretch of a real answer.
+ *
+ * Sized from a full-length quiz (`MAX_QUIZ_QUESTIONS`, ten questions), measured
+ * 2026-09-07: ~6.5KB with typical wording and ~9KB for a wordy quiz once the
+ * pseudo-call is pretty-printed (see "held-text cap" in recover-quiz.test.ts).
+ * The cap leaves ~75% over the wordy case. It errs generous because a leak that
+ * outgrows it after the skeleton is up ends as an error notice, whereas the
+ * cost of generosity is a legitimate JSON block this large being withheld until
+ * it ends rather than streamed, a shape `stillPlausible` cannot rule out.
  */
 export const MAX_HELD_CHARS = 16_000;
 
@@ -40,7 +45,8 @@ const PSEUDO_ARG_WINDOW = 48;
  * placeholder is shown.
  *
  * The point of the threshold is to separate a real leak from a short non-quiz
- * JSON blob. A five-question quiz with explanations serializes to 2KB or more,
+ * JSON blob. Even a tersely worded quiz crosses this by its second question
+ * (measured: a terse question adds ~270 chars, a typically worded one ~575),
  * while the quiz-shaped false positives in `leak-false-positives.test.ts` are
  * all under 200 characters, so nothing in that corpus can reach this.
  */
