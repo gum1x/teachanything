@@ -34,10 +34,12 @@ export interface CrawlerMutations {
 
 interface UseCrawlerMutationsOptions {
   /**
-   * Refreshes the source list after every successful mutation. Fired without
-   * awaiting, matching the original inline wiring.
+   * Refreshes the source list after every successful mutation. Attach/detach
+   * await it so `isPending` holds until the refetched list lands (the row's
+   * chatbot picker is gated on it); the other mutations fire it without
+   * awaiting.
    */
-  refresh: () => void | Promise<unknown>;
+  refresh: () => Promise<unknown>;
   /**
    * Extra refresh for attach/detach (e.g. invalidate the chatbot's
    * attachable-sources list). Not awaited.
@@ -80,22 +82,22 @@ export function useCrawlerMutations(
 
   const attach = trpc.crawler.attachToChatbot.useMutation({
     onSuccess: () => {
-      void refresh();
       refreshAttachments?.();
       if (attachSuccessMessage) {
         toast.success(attachSuccessMessage);
       }
+      return refresh();
     },
     onError: (error) => showError("Failed to attach", error),
   });
 
   const detach = trpc.crawler.detachFromChatbot.useMutation({
     onSuccess: () => {
-      void refresh();
       refreshAttachments?.();
       if (detachSuccessMessage) {
         toast.success(detachSuccessMessage);
       }
+      return refresh();
     },
     onError: (error) => showError("Failed to remove", error),
   });
