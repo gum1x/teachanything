@@ -405,7 +405,7 @@ Checklist that the hook does NOT enforce — still your responsibility:
 - `packages/ai/src/crawler.ts` (608 lines) and `rag-service.ts` (486) are in
   scope and both want splitting. They were left alone during the August 2026
   architecture cleanup, which scoped itself to `apps/web`.
-- `apps/web/src/server/chat/recover-quiz.ts` (306) and
+- `apps/web/src/server/chat/recover-quiz.ts` (324) and
   `server/crawl-processor/content-pipeline.ts` (305) sit just over the target.
   Both are single cohesive procedures whose closures do not separate cleanly, so
   they were left whole on purpose.

@@ -20,18 +20,17 @@ const MARKERS = ["{", "```", "showQuiz("] as const;
 export const MARKER_LOOKBACK = "[showQuiz(".length - 1;
 
 /**
- * Hard cap on held text: anything past this is not the leak we're looking for,
- * so bail out rather than withhold an unbounded stretch of a real answer.
+ * Hard cap on held text that has NOT yet committed to the quiz placeholder:
+ * anything this long is not the leak we're looking for, so bail out rather
+ * than withhold an unbounded stretch of a real answer (a JSON or ```json block,
+ * which `stillPlausible` can never rule out).
  *
- * Sized from a full-length quiz (`MAX_QUIZ_QUESTIONS`, ten questions), measured
- * 2026-09-07: ~6.5KB with typical wording and ~9KB for a wordy quiz once the
- * pseudo-call is pretty-printed (see "held-text cap" in recover-quiz.test.ts).
- * The cap leaves ~75% over the wordy case. It errs generous because a leak that
- * outgrows it after the skeleton is up ends as an error notice, whereas the
- * cost of generosity is a legitimate JSON block this large being withheld until
- * it ends rather than streamed, a shape `stillPlausible` cannot rule out.
+ * Independent of quiz size on purpose. A real leak commits within its first
+ * few hundred characters (`QUIZ_PLACEHOLDER_MIN_CHARS`), and once committed the
+ * block is held to its end however long it grows, so a full-length quiz -- ~9KB
+ * pretty-printed with wordy questions -- never meets this cap.
  */
-export const MAX_HELD_CHARS = 16_000;
+export const MAX_HELD_CHARS = 8_000;
 
 /**
  * How far past `showQuiz(` to wait for `quiz_title` / `questions` before

@@ -132,14 +132,19 @@ export function recoverLeakedQuiz(): TransformStream<Chunk, Chunk> {
     const id = blockId;
     if (id === null) return;
 
+    // Close the text part whenever one is open. Prose released live before the
+    // marker opened it even when the unreleased tail before the marker is only
+    // whitespace, and a part left open renders as text that never finished.
     const preamble = pendingText.slice(0, markerAt);
-    if (preamble.trim().length > 0) {
+    if (startEmitted || preamble.trim().length > 0) {
       emitStart(controller);
-      controller.enqueue({
-        type: "text-delta",
-        id,
-        delta: preamble,
-      });
+      if (preamble.length > 0) {
+        controller.enqueue({
+          type: "text-delta",
+          id,
+          delta: preamble,
+        });
+      }
       controller.enqueue({ type: "text-end", id });
     }
     // The preamble is out, and the rest is the leak. `pending` holds the raw
@@ -262,8 +267,17 @@ export function recoverLeakedQuiz(): TransformStream<Chunk, Chunk> {
           }
         }
 
-        // Holding: give up as soon as the held text can't be a quiz (or grows
-        // past the cap) and go back to watching the rest of the block.
+        // Holding. Once the placeholder has committed, the held text is a
+        // declared quiz that is never released as prose, so neither the cap
+        // nor the plausibility check applies any more: the block is held to
+        // its end (bounded by the turn's token limit) and parsed there.
+        // Bailing out here after commitment used to emit the error notice and
+        // then re-arm marker detection, which streamed the rest of the leak,
+        // answer key included, as text into a part that was already closed.
+        if (placeholderCallId) return;
+
+        // Before commitment: give up as soon as the held text can't be a quiz
+        // (or grows past the cap) and go back to watching the rest of the block.
         const held = pendingText.slice(markerAt);
         if (held.length > MAX_HELD_CHARS || !stillPlausible(held)) {
           flushPending(controller);
@@ -279,8 +293,12 @@ export function recoverLeakedQuiz(): TransformStream<Chunk, Chunk> {
         chunk.id === blockId
       ) {
         if (!closeBlock(controller, chunk)) {
+          // Read before flushing: a committed placeholder means the text part
+          // was already closed when the preamble was released, so forwarding
+          // the block's own text-end would close it a second time.
+          const textPartOpen = placeholderCallId === null;
           flushPending(controller);
-          controller.enqueue(chunk);
+          if (textPartOpen) controller.enqueue(chunk);
         }
         reset();
         return;

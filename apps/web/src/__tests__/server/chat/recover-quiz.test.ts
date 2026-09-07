@@ -49,6 +49,15 @@ const deltasOf = (text: string, size = 17) => {
   return deltas;
 };
 
+/** The recovered quiz part, when one was emitted. */
+const quizPartOf = (out: Chunk[]) =>
+  out.find((c) => c.type === "tool-input-available") as
+    | {
+        toolName: string;
+        input: { quiz_title: string; questions: unknown[] };
+      }
+    | undefined;
+
 const quiz = {
   quiz_title: "Photosynthesis",
   questions: [
@@ -333,14 +342,6 @@ describe("a leak that needs repairing", () => {
       questions,
     )})]`;
 
-  const quizPartOf = (out: Chunk[]) =>
-    out.find((c) => c.type === "tool-input-available") as
-      | {
-          toolName: string;
-          input: { quiz_title: string; questions: unknown[] };
-        }
-      | undefined;
-
   it("recovers an over-long leak by trimming to the ceiling", async () => {
     const leak = pseudoCall(
       Array.from({ length: MAX_QUIZ_QUESTIONS + 1 }, (_, i) => question(i + 1)),
@@ -517,6 +518,9 @@ describe("placeholder while a leaked quiz is buffering", () => {
     expect(text).toContain("Here are 5 multiple-choice questions");
     expect(text).not.toContain("correct_index");
     expect(text).not.toContain("showQuiz");
+    // The preamble's part was closed when the skeleton went up; the block's
+    // own text-end must not close it a second time.
+    expect(out.filter((c) => c.type === "text-end")).toHaveLength(1);
   });
 
   it("still recovers when the stream dies mid-quiz after the skeleton", async () => {
@@ -532,21 +536,22 @@ describe("placeholder while a leaked quiz is buffering", () => {
     const types = out.map((c) => c.type);
     expect(types).toContain("tool-input-start");
     expect(types).toContain("tool-input-available");
-    const available = out.find((c) => c.type === "tool-input-available");
-    const input = available?.input as { questions: unknown[] };
-    expect(input.questions.length).toBeGreaterThan(0);
+    expect(quizPartOf(out)?.input.questions.length).toBeGreaterThan(0);
   });
 });
 
 /**
- * `MAX_HELD_CHARS` is derived from the size of a full-length quiz, so it has to
- * move with `MAX_QUIZ_QUESTIONS`. A ten-question leak written verbosely and
- * pretty-printed runs to ~9KB; the 8KB cap that fit five questions abandoned
- * such a leak mid-stream, and since the skeleton was already up by then the
- * student saw "could not be built" instead of the quiz.
+ * The held-text cap only governs text that has not yet committed to the quiz
+ * placeholder. Once the skeleton is up the block is held to its end however
+ * long it grows: it was declared a quiz, so nothing in it may reach the student
+ * as prose. Bailing out at the cap after commitment used to emit the error
+ * notice and then stream the rest of the leak -- answer key included -- as text
+ * into a part that had already been closed. The ten-question ceiling made that
+ * reachable: a wordy, pretty-printed ten-question leak runs to ~9KB, past the
+ * 8KB cap.
  */
 describe("held-text cap", () => {
-  const verboseQuestion = (i: number) => ({
+  const verboseQuestion = (i: number, correctIndex: number) => ({
     question: `Question ${i + 1}: which of the following best characterises the argument the assigned chapter makes about gender as a repeated, socially enforced performance rather than a fixed inner essence?`,
     options: [
       "That gender is a stable biological given that social norms merely describe after the fact",
@@ -554,49 +559,117 @@ describe("held-text cap", () => {
       "That gender is chosen freely each morning by an autonomous subject who stands outside of norms",
       "That gender is an ideological illusion with no bearing on lived embodiment or institutions",
     ],
-    correct_index: 1,
+    correct_index: correctIndex,
     explanation: `The chapter argues that the repetition of gendered acts over time produces the appearance of an inner core; question ${i + 1} checks whether the distinction between expressing and constituting gender has landed.`,
   });
 
-  it("recovers a verbose, pretty-printed full-length leak", async () => {
-    const questions = Array.from({ length: MAX_QUIZ_QUESTIONS }, (_, i) =>
-      verboseQuestion(i),
-    );
-    const leak = `[showQuiz(quiz_title="Gender as Performance", questions=${JSON.stringify(
-      questions,
+  /** A wordy full-length pseudo-call, pretty-printed the way a model writes it. */
+  const fullLengthLeak = (correctIndex = 1) =>
+    `[showQuiz(quiz_title="Gender as Performance", questions=${JSON.stringify(
+      Array.from({ length: MAX_QUIZ_QUESTIONS }, (_, i) =>
+        verboseQuestion(i, correctIndex),
+      ),
       null,
       2,
     )})]`;
-    // The regression this guards: a realistic ten-question leak is past the
-    // 8KB cap that sized five questions, and must still sit under the current one.
-    expect(leak.length).toBeGreaterThan(8_000);
-    expect(leak.length).toBeLessThan(MAX_HELD_CHARS);
 
-    const out = await pump(textBlock("t1", deltasOf(leak, 17)));
+  const PREAMBLE = "Here are your questions on the chapter.\n\n";
 
-    const part = out.find((c) => c.type === "tool-input-available") as
-      | { input: { questions: unknown[] } }
-      | undefined;
-    expect(part?.input.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
+  /** Index of the first text-end must come after the last text-delta. */
+  const textClosedOnce = (out: Chunk[]) => {
+    const types = out.map((c) => c.type);
+    expect(out.filter((c) => c.type === "text-end")).toHaveLength(1);
+    expect(types.lastIndexOf("text-delta")).toBeLessThan(
+      types.indexOf("text-end"),
+    );
+  };
+
+  it("holds a committed leak past the cap and still recovers it", async () => {
+    const leak = fullLengthLeak();
+    expect(leak.length).toBeGreaterThan(MAX_HELD_CHARS);
+
+    const out = await pump(textBlock("t1", [PREAMBLE, ...deltasOf(leak)]));
+
+    expect(quizPartOf(out)?.input.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
     expect(out.map((c) => c.type)).not.toContain("tool-output-error");
-    // The answer key must never reach the student as text.
-    expect(textOf(out)).toBe("");
+    // The preamble streams and its part closes exactly once; the answer key
+    // never reaches the student as text.
+    expect(textOf(out)).toBe(PREAMBLE);
+    textClosedOnce(out);
   });
 
-  it("releases a JSON block that outgrows the cap instead of withholding it", async () => {
+  it("ends a committed leak past the cap as one error notice when it cannot render", async () => {
+    // Every question is unrenderable, so nothing can be salvaged. The outcome
+    // must be the error notice alone: no part of the leak released as text,
+    // and no second text-end for the preamble's already-closed part.
+    const leak = fullLengthLeak(99);
+    expect(leak.length).toBeGreaterThan(MAX_HELD_CHARS);
+
+    const out = await pump(textBlock("t1", [PREAMBLE, ...deltasOf(leak)]));
+
+    const types = out.map((c) => c.type);
+    expect(types).toContain("tool-input-start");
+    expect(types.filter((t) => t === "tool-output-error")).toHaveLength(1);
+    expect(types).not.toContain("tool-input-available");
+    expect(textOf(out)).toBe(PREAMBLE);
+    textClosedOnce(out);
+  });
+
+  it("closes the preamble's part when only whitespace precedes the leak", async () => {
+    // Prose released live before the marker opened the text part. The tail
+    // still buffered when the marker arrives can be whitespace alone, and the
+    // part must be closed regardless or it renders as text that never ended.
+    const out = await pump(
+      textBlock("t1", [
+        "Sure, here is a quiz for you.",
+        "\n".repeat(12),
+        ...deltasOf(fullLengthLeak()),
+      ]),
+    );
+
+    expect(quizPartOf(out)?.input.questions).toHaveLength(MAX_QUIZ_QUESTIONS);
+    expect(out.filter((c) => c.type === "text-start")).toHaveLength(1);
+    expect(textOf(out).trim()).toBe("Sure, here is a quiz for you.");
+    textClosedOnce(out);
+  });
+
+  it("releases an uncommitted JSON block at the cap rather than at the block's end", async () => {
     // A non-quiz JSON answer opens with a quoted key, so `stillPlausible` never
-    // rules it out: the cap is what lets it through before the block ends.
+    // rules it out: the cap is the only thing that lets it through before the
+    // block ends. The block comes out in full either way once it ends, so the
+    // assertion that matters is how much the student had BEFORE that.
     const block = `{"entries": ${JSON.stringify(
       Array.from({ length: 2_000 }, (_, i) => ({ id: i, label: `item ${i}` })),
     )}}`;
     expect(block.length).toBeGreaterThan(MAX_HELD_CHARS);
 
-    const out = await pump(textBlock("t1", deltasOf(block, 500)));
+    const stream = recoverLeakedQuiz();
+    const writer = stream.writable.getWriter();
+    const out: Chunk[] = [];
+    const drained = (async () => {
+      const reader = stream.readable.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        out.push(value as Chunk);
+      }
+    })();
+    await writer.write({ type: "text-start", id: "t1" } as never);
+    for (const delta of deltasOf(block, 500)) {
+      await writer.write({ type: "text-delta", id: "t1", delta } as never);
+    }
+    // Let the reader drain whatever the transform has released so far.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const releasedBeforeEnd = textOf(out).length;
+    await writer.write({ type: "text-end", id: "t1" } as never);
+    await writer.close();
+    await drained;
 
+    expect(releasedBeforeEnd).toBeGreaterThan(MAX_HELD_CHARS);
     const types = out.map((c) => c.type);
     expect(types).not.toContain("tool-input-start");
     expect(types).not.toContain("tool-output-error");
     expect(textOf(out)).toBe(block);
-    expect(out.filter((c) => c.type === "text-end")).toHaveLength(1);
+    textClosedOnce(out);
   });
 });
