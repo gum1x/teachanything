@@ -14,7 +14,13 @@ import { logError, logWarn } from "@/lib/logger";
 import { repairQuiz } from "@/lib/quiz";
 import type { StudyUIMessage } from "./study-tools";
 import type { Chunk } from "./ui-chunks";
-import { stripRetrievalOutputs } from "./stream-filter";
+import {
+  newStreamTail,
+  recordTurnChunk,
+  stripRetrievalOutputs,
+  type StreamTail,
+} from "./stream-filter";
+import { MAX_AGENT_STEPS, finalStepSettings } from "./final-step";
 import { recoverLeakedQuiz } from "./recover-quiz";
 import {
   repairQuizToolParts,
@@ -38,6 +44,8 @@ import {
 async function forward(
   writer: UIMessageStreamWriter<StudyUIMessage>,
   source: ReadableStream<Chunk>,
+  /** Sees each chunk as it is written; returning false holds it back. */
+  keep?: (chunk: Chunk) => boolean,
 ): Promise<void> {
   const reader = source.getReader();
   let drained = false;
@@ -48,7 +56,7 @@ async function forward(
         drained = true;
         return;
       }
-      writer.write(value);
+      if (!keep || keep(value)) writer.write(value);
     }
   } finally {
     // Leaving early means a transform threw, or the source stream errored.
@@ -58,7 +66,8 @@ async function forward(
     // only cancels its source once BOTH branches are cancelled. `abortSignal`
     // is what actually ends generation. Cancelling also skips the transform's
     // `flush()`, which drops a buffered leaked quiz -- harmless here, because
-    // this path ends the turn with an error part instead of an answer.
+    // the student never saw it, and this path ends the turn with the fallback
+    // answer or an error part.
     if (!drained) {
       await reader.cancel().catch(() => {});
     }
@@ -72,7 +81,11 @@ async function forward(
  * Streams every visible chunk into `writer` (drained via `forward`), then
  * resolves with the turn's final text and steps. The unawaited `finishReason`
  * promise is returned as-is so the caller can await it at its original point in
- * the sequence. `{ ok: false }` means the turn failed after streaming.
+ * the sequence. `tail` records how the stream ended, including any `error`
+ * chunk, held back from `writer` (see `recordTurnChunk`) so the caller decides
+ * whether to recover or surface it. `{ ok: false }` means the stream itself
+ * failed (a dropped connection, a broken transform); `tail` still says how far
+ * it got.
  */
 export async function runPrimaryTurn(args: {
   aiClient: OpenRouterClient;
@@ -94,9 +107,11 @@ export async function runPrimaryTurn(args: {
       primaryText: string;
       primarySteps: Array<StepResult<ToolSet>>;
       finishReason: PromiseLike<FinishReason>;
+      tail: StreamTail;
     }
-  | { ok: false; error: unknown }
+  | { ok: false; error: unknown; tail: StreamTail }
 > {
+  const tail = newStreamTail();
   const primary = streamText({
     model: args.aiClient.getModel(args.modelId),
     system: args.systemPrompt,
@@ -105,7 +120,10 @@ export async function runPrimaryTurn(args: {
     // stepCountIs caps the agentic retrieval loop; hasToolCall("done") ends
     // it early when the model delivers a final answer via the `done` tool.
     // Harmless when `done` isn't in the toolset (never fires).
-    stopWhen: [stepCountIs(5), hasToolCall("done")],
+    stopWhen: [stepCountIs(MAX_AGENT_STEPS), hasToolCall("done")],
+    // The capped step must answer rather than search (see final-step.ts).
+    prepareStep: ({ stepNumber }) =>
+      finalStepSettings(args.tools, args.systemPrompt, stepNumber),
     temperature: args.temperature,
     maxOutputTokens: args.maxOutputTokens,
     abortSignal: args.abortSignal,
@@ -131,6 +149,9 @@ export async function runPrimaryTurn(args: {
         if (written !== undefined) {
           args.partialQuizInput.set(chunk.id, written + chunk.delta);
         }
+      } else if (chunk.type === "tool-call") {
+        // Complete: no longer a quiz the turn could leave half-written.
+        args.partialQuizInput.delete(chunk.toolCallId);
       }
     },
   });
@@ -160,6 +181,7 @@ export async function runPrimaryTurn(args: {
       args.modelCanUseTools
         ? primaryUiStream.pipeThrough(recoverLeakedQuiz())
         : primaryUiStream,
+      (chunk) => recordTurnChunk(tail, chunk),
     );
 
     const [primaryText, primarySteps] = await Promise.all([
@@ -171,10 +193,11 @@ export async function runPrimaryTurn(args: {
       primaryText,
       primarySteps,
       finishReason: primary.finishReason,
+      tail,
     };
   } catch (error) {
     logError(error, "primary turn failed", { chatbotId: args.chatbotId });
-    return { ok: false, error };
+    return { ok: false, error, tail };
   }
 }
 
@@ -218,9 +241,10 @@ export function salvageTruncatedQuizzes(
  * invisible unless written out here. A model that narrates in an earlier
  * step ("Let me check the readings.") and then answers via `done` has a
  * non-empty `turnText` but an empty final step -- gating on `turnText`
- * there would swallow the answer entirely. `hasVisibleAnswer` below is
- * the opposite question ("did the turn produce anything at all?") and
- * correctly spans every step.
+ * there would swallow the answer entirely. `hasVisibleAnswer` in
+ * turn-execution.ts is the opposite question ("did the turn answer at
+ * all?") and spans every step, discounting only the preamble of a turn cut
+ * off mid-search.
  */
 export function writeDoneAnswerAsText(
   writer: UIMessageStreamWriter<StudyUIMessage>,
