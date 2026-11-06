@@ -96,6 +96,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Fixed so public pages stay static: reading the user's language here would
+  // render every page per request. Localized layouts mark their content with
+  // `lang` in the server HTML and update this attribute after hydration.
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body className={`${inter.className} ${instrumentSerif.variable}`}>

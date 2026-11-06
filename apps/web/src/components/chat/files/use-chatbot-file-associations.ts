@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import { logError } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
 import { serverErrorMessage } from "@/lib/server-error-message";
-import { fileAssociationErrorMessage } from "@/lib/stored-file-error";
+import {
+  fileAssociationErrorMessage,
+  isFailedFileError,
+} from "@/lib/stored-file-error";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -46,10 +49,8 @@ export function useChatbotFileAssociations({
       toast.success(t("files.chatbot.toasts.added"));
     },
     onError: (error) => {
-      // Check if it's a failed file error
-      const isFailedFileError = error.message.includes("failed to process");
       toast.error(
-        isFailedFileError
+        isFailedFileError(error)
           ? t("files.chatbot.toasts.cannotAdd")
           : t("files.chatbot.toasts.addFailed"),
         {

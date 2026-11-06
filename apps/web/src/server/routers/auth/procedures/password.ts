@@ -10,6 +10,7 @@ import { isPasswordDifferent } from "@/lib/password/password-validation";
 import { logInfo, logError, logWarn } from "@/lib/logger";
 import { auth } from "@/server/auth";
 import { appError } from "@/server/app-error";
+import { retryAfterMinutes } from "@/lib/constants/rate-limits";
 
 /**
  * Update user password
@@ -39,9 +40,8 @@ export const updatePasswordProcedure = protectedProcedure
     );
 
     if (!success) {
-      const retryAfter = Math.ceil((reset - Date.now()) / 1000);
       throw appError("TOO_MANY_REQUESTS", "errors.rateLimits.passwordUpdate", {
-        minutes: Math.ceil(retryAfter / 60),
+        minutes: retryAfterMinutes(reset),
       });
     }
 

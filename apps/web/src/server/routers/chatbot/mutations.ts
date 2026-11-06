@@ -7,6 +7,7 @@ import { checkRateLimit, chatbotCreationRateLimit } from "@/server/rate-limit";
 import { assertOwnedChatbot } from "@/server/queries/chatbot";
 import { createChatbotSchema } from "./schemas";
 import { appError } from "@/server/app-error";
+import { retryAfterHours } from "@/lib/constants/rate-limits";
 
 export const chatbotMutations = {
   /**
@@ -26,12 +27,11 @@ export const chatbotMutations = {
       );
 
       if (!success) {
-        const retryAfter = Math.ceil((reset - Date.now()) / 1000);
         throw appError(
           "TOO_MANY_REQUESTS",
           "errors.rateLimits.chatbotCreation",
           {
-            hours: Math.ceil(retryAfter / 3600),
+            hours: retryAfterHours(reset),
           },
         );
       }

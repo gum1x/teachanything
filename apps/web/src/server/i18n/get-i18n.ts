@@ -13,17 +13,31 @@ import { logError } from "@/lib/logger";
 
 const CATALOGS: Record<Locale, Messages> = { en, fr, es, de };
 
-/** The session only picks the language, so a failed lookup must not fail the page. */
+const SESSION_LOOKUP_TIMEOUT_MS = 3_000;
+
+/** The session only picks the language, so a failed or hung lookup must not hold up the page. */
 async function getSessionForLocale(headerList: Headers) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Session lookup timed out")),
+      SESSION_LOOKUP_TIMEOUT_MS,
+    );
+  });
   try {
-    // disableRefresh: a server layout cannot forward the renewed session cookie.
-    return await auth.api.getSession({
-      headers: headerList,
-      query: { disableRefresh: true },
-    });
+    return await Promise.race([
+      // disableRefresh: a server layout cannot forward the renewed session cookie.
+      auth.api.getSession({
+        headers: headerList,
+        query: { disableRefresh: true },
+      }),
+      timeout,
+    ]);
   } catch (error) {
     logError(error, "Session lookup failed while resolving the locale");
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

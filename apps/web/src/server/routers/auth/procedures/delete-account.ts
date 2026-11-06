@@ -8,6 +8,7 @@ import { logError } from "@/lib/logger";
 import { auth } from "@/server/auth";
 import { deleteUserAccount } from "@/server/services/user-deletion";
 import { appError } from "@/server/app-error";
+import { retryAfterMinutes } from "@/lib/constants/rate-limits";
 
 /**
  * Delete the current user's own account permanently.
@@ -32,9 +33,8 @@ export const deleteOwnAccountProcedure = protectedProcedure
     );
 
     if (!success) {
-      const retryAfter = Math.ceil((reset - Date.now()) / 1000);
       throw appError("TOO_MANY_REQUESTS", "errors.rateLimits.attempts", {
-        minutes: Math.ceil(retryAfter / 60),
+        minutes: retryAfterMinutes(reset),
       });
     }
 

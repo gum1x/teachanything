@@ -22,6 +22,9 @@ import {
   type Locale,
 } from "@/i18n/config";
 
+const BROWSER_LANGUAGE = "browser";
+type LanguageChoice = Locale | typeof BROWSER_LANGUAGE;
+
 /**
  * The dashboard language picker. Saving reloads the server layouts, which read
  * the saved language back from the database.
@@ -50,7 +53,8 @@ function LanguageForm({ savedLocale }: { savedLocale: Locale | null }) {
   const utils = trpc.useUtils();
   const [isApplying, startApplying] = useTransition();
   const currentLocale = i18n.language as Locale;
-  const [draft, setDraft] = useState<Locale>(savedLocale ?? currentLocale);
+  const savedChoice: LanguageChoice = savedLocale ?? BROWSER_LANGUAGE;
+  const [draft, setDraft] = useState<LanguageChoice>(savedChoice);
 
   const save = trpc.auth.updatePreferredLocale.useMutation({
     onSuccess: async () => {
@@ -83,13 +87,16 @@ function LanguageForm({ savedLocale }: { savedLocale: Locale | null }) {
           </Label>
           <Select
             value={draft}
-            onValueChange={(value) => setDraft(value as Locale)}
+            onValueChange={(value) => setDraft(value as LanguageChoice)}
             disabled={isBusy}
           >
             <SelectTrigger id="dashboard-language">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={BROWSER_LANGUAGE}>
+                {t("settings.language.useBrowser")}
+              </SelectItem>
               {ENABLED_LOCALES.map((locale) => (
                 <SelectItem key={locale} value={locale} lang={locale}>
                   {LOCALE_LABELS[locale]}
@@ -100,8 +107,10 @@ function LanguageForm({ savedLocale }: { savedLocale: Locale | null }) {
         </div>
         <Button
           size="sm"
-          onClick={() => save.mutate({ locale: draft })}
-          disabled={isBusy || draft === savedLocale}
+          onClick={() =>
+            save.mutate({ locale: draft === BROWSER_LANGUAGE ? null : draft })
+          }
+          disabled={isBusy || draft === savedChoice}
         >
           {isBusy
             ? t("settings.language.applying")

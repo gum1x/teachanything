@@ -5,7 +5,6 @@ import { FormFieldWithCounter } from "@/components/ui/form-field-with-counter";
 import { WrappableText } from "@/components/ui/wrappable-text";
 import { CharacterCounter } from "@/components/ui/character-counter";
 import { VALIDATION_LIMITS } from "@/lib/validation";
-import { DEFAULT_WELCOME_MESSAGE } from "@/lib/chat/helpers";
 import { useTranslation } from "react-i18next";
 
 interface WelcomeMessageFieldProps {
@@ -57,7 +56,7 @@ export function WelcomeMessageField({
           <WrappableText>
             {value ||
               t("chatbotSettings.welcome.default", {
-                message: DEFAULT_WELCOME_MESSAGE,
+                message: t("chat.interface.emptyPrompt"),
               })}
           </WrappableText>
         </p>

@@ -14,6 +14,7 @@ import {
 } from "../validation";
 import { randomUUID } from "crypto";
 import { appError } from "@/server/app-error";
+import { retryAfterMinutes } from "@/lib/constants/rate-limits";
 
 /**
  * Generate a signed upload URL for direct client-to-Supabase uploads
@@ -45,9 +46,8 @@ export const createUploadUrlProcedure = protectedProcedure
     );
 
     if (!success) {
-      const retryAfter = Math.ceil((reset - Date.now()) / 1000);
       throw appError("TOO_MANY_REQUESTS", "errors.rateLimits.upload", {
-        minutes: Math.ceil(retryAfter / 60),
+        minutes: retryAfterMinutes(reset),
       });
     }
 

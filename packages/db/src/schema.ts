@@ -96,6 +96,8 @@ export const user = pgTable("user", {
   department: text("department"),
   facultyWebpage: text("faculty_webpage"),
   country: text("country"),
+  // `enum` only narrows the TypeScript type; Postgres accepts any text. The app
+  // validates on write and ignores unknown values on read (`isEnabledLocale`).
   preferredLocale: text("preferred_locale", {
     enum: ["en", "fr", "es", "de"],
   }), // null: follow the browser's language

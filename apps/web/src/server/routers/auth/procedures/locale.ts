@@ -6,22 +6,37 @@ import { user } from "@teachanything/db/schema";
 import { env } from "@/lib/env";
 import { isEnabledLocale, LOCALE_COOKIE, type Locale } from "@/i18n/config";
 import { appError } from "@/server/app-error";
+import { checkRateLimit, localeUpdateRateLimit } from "@/server/rate-limit";
+import { retryAfterMinutes } from "@/lib/constants/rate-limits";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 /**
- * Save the signed-in user's dashboard language. The cookie keeps that language
- * on this browser after sign-out, for the sign-in pages.
+ * Save the signed-in user's dashboard language, or clear it with `null` to
+ * follow the browser again. The cookie keeps a saved language on this browser
+ * after sign-out, for the sign-in pages.
  */
 export const updatePreferredLocaleProcedure = protectedProcedure
   .input(
     z.object({
-      locale: z.custom<Locale>((value) => isEnabledLocale(value), {
-        message: "Unsupported language",
-      }),
+      locale: z.custom<Locale | null>(
+        (value) => value === null || isEnabledLocale(value),
+        { message: "Unsupported language" },
+      ),
     }),
   )
   .mutation(async ({ ctx, input }) => {
+    const { success, reset } = await checkRateLimit(
+      localeUpdateRateLimit,
+      ctx.session.user.id,
+      { userId: ctx.session.user.id, endpoint: "updatePreferredLocale" },
+    );
+    if (!success) {
+      throw appError("TOO_MANY_REQUESTS", "errors.rateLimits.attempts", {
+        minutes: retryAfterMinutes(reset),
+      });
+    }
+
     const [saved] = await ctx.db
       .update(user)
       .set({ preferredLocale: input.locale, updatedAt: new Date() })
@@ -32,13 +47,18 @@ export const updatePreferredLocaleProcedure = protectedProcedure
       throw appError("NOT_FOUND", "errors.notFoundItems.user");
     }
 
-    (await cookies()).set(LOCALE_COOKIE, input.locale, {
-      path: "/",
-      sameSite: "lax",
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      maxAge: ONE_YEAR_SECONDS,
-    });
+    const cookieStore = await cookies();
+    if (input.locale === null) {
+      cookieStore.delete(LOCALE_COOKIE);
+    } else {
+      cookieStore.set(LOCALE_COOKIE, input.locale, {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        maxAge: ONE_YEAR_SECONDS,
+      });
+    }
 
     return { locale: input.locale };
   });

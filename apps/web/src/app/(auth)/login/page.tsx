@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { BrandName } from "@/components/brand/BrandName";
 import { useTranslation, Trans } from "react-i18next";
-import { authErrorMessage } from "@/lib/auth-error-message";
+import { loginErrorMessage } from "@/lib/auth-error-message";
 import { logError } from "@/lib/logger";
 
 export default function LoginPage() {
@@ -113,11 +113,7 @@ export default function LoginPage() {
             }
 
             // Default error handling
-            const displayMessage = authErrorMessage(
-              t,
-              ctx.error,
-              t("auth.login.checkCredentials"),
-            );
+            const displayMessage = loginErrorMessage(t, ctx.error);
 
             setError(displayMessage);
             toast.error(t("auth.login.failed"), {

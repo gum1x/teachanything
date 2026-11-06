@@ -3,10 +3,21 @@ import {
   CRAWL_SOURCES_PER_HOUR,
   MANUAL_URLS_PER_HOUR,
   RECRAWLS_PER_HOUR,
+  retryAfterHours,
   retryAfterMinutes,
 } from "@/lib/constants/rate-limits";
 
 const NOW = 1_700_000_000_000;
+
+describe("retryAfterHours", () => {
+  it("rounds a partial hour up", () => {
+    expect(retryAfterHours(NOW + 90 * 60_000, NOW)).toBe(2);
+  });
+
+  it("clamps a reset that has already passed", () => {
+    expect(retryAfterHours(NOW - 120_000, NOW)).toBe(1);
+  });
+});
 
 describe("retryAfterMinutes", () => {
   it("rounds a partial minute up", () => {

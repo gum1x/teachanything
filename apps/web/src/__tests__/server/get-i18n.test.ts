@@ -1,10 +1,18 @@
 /**
  * @jest-environment node
  */
-import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from "@jest/globals";
 
 let session: { user: { preferredLocale: string | null } } | null = null;
 let sessionFailure: Error | null = null;
+let isSessionHanging = false;
 const mockLogError = jest.fn();
 
 jest.unstable_mockModule("next/headers", () => ({
@@ -15,6 +23,7 @@ jest.unstable_mockModule("@/server/auth/config", () => ({
   auth: {
     api: {
       getSession: async () => {
+        if (isSessionHanging) await new Promise(() => {});
         if (sessionFailure) throw sessionFailure;
         return session;
       },
@@ -28,7 +37,12 @@ const { getI18nProps, generateDashboardMetadata } =
 
 beforeEach(() => {
   sessionFailure = null;
+  isSessionHanging = false;
   mockLogError.mockClear();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe("getI18nProps", () => {
@@ -53,6 +67,17 @@ describe("getI18nProps", () => {
   it("uses the cookie when the session lookup fails", async () => {
     sessionFailure = new Error("connection pool timeout");
     await expect(getI18nProps()).resolves.toMatchObject({ locale: "de" });
+  });
+
+  it("stops waiting for a session lookup that hangs", async () => {
+    jest.useFakeTimers();
+    isSessionHanging = true;
+
+    const props = getI18nProps();
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    await expect(props).resolves.toMatchObject({ locale: "de" });
+    expect(mockLogError).toHaveBeenCalledTimes(1);
   });
 
   it("logs a failed session lookup", async () => {

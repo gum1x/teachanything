@@ -22,6 +22,17 @@ export function storedFileErrorMessage(i18n: I18n, stored: string): string {
   return key ? (i18n.t(`files.errors.${key}` as never) as string) : stored;
 }
 
+/** Whether the server refused a file because its processing failed. */
+export function isFailedFileError(error: { data?: unknown }): boolean {
+  const key = (
+    error.data as { i18n?: { key?: string } | null } | null | undefined
+  )?.i18n?.key;
+  return (
+    key === "errors.files.failedToProcess" ||
+    key === "errors.files.failedToProcessWithReason"
+  );
+}
+
 /**
  * A failed "add file to chatbot" error. The server puts the file's stored English
  * error inside the sentence, so translate that part before the sentence is built.

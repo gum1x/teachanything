@@ -1,7 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import en from "../../../messages/en.json";
 import { createI18n } from "@/i18n/create-i18n";
-import { authErrorMessage } from "@/lib/auth-error-message";
+import { authErrorMessage, loginErrorMessage } from "@/lib/auth-error-message";
 
 const english = createI18n("en", en);
 
@@ -20,5 +20,22 @@ describe("authErrorMessage", () => {
     expect(authErrorMessage(english.t, { code: "OTHER" }, "fallback")).toBe(
       "fallback",
     );
+  });
+});
+
+describe("loginErrorMessage", () => {
+  it("does not blame the password for a server-side failure", () => {
+    expect(
+      loginErrorMessage(english.t, { code: "FAILED_TO_CREATE_SESSION" }),
+    ).toBe(en.auth.login.genericError);
+    expect(loginErrorMessage(english.t, { status: 500 })).toBe(
+      en.auth.login.genericError,
+    );
+  });
+
+  it("still reports a wrong password as wrong credentials", () => {
+    expect(
+      loginErrorMessage(english.t, { code: "INVALID_EMAIL_OR_PASSWORD" }),
+    ).toBe(en.auth.errors.invalidCredentials);
   });
 });

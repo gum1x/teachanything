@@ -18,3 +18,8 @@ export const RECRAWLS_PER_HOUR = 5;
 export function retryAfterMinutes(reset: number, now: number = Date.now()) {
   return Math.max(1, Math.ceil((reset - now) / 60_000));
 }
+
+/** The same wait in whole hours, for limiters with an hourly message. */
+export function retryAfterHours(reset: number, now: number = Date.now()) {
+  return Math.max(1, Math.ceil((reset - now) / 3_600_000));
+}

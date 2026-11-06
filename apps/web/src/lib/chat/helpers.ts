@@ -150,7 +150,3 @@ export function deriveStatusLine(
   }
   return t("chat.status.generating");
 }
-
-/** Greeting shown under "Welcome to <name>!" when a chatbot has no custom welcome message. */
-export const DEFAULT_WELCOME_MESSAGE =
-  "Start by asking a question about the course.";

@@ -30,3 +30,11 @@ export function authErrorMessage(
       return fallback;
   }
 }
+
+/** A failed sign-in. Only a rejected password may read as wrong credentials. */
+export function loginErrorMessage(
+  t: TFunction,
+  error: { code?: string; status?: number },
+): string {
+  return authErrorMessage(t, error, t("auth.login.genericError"));
+}

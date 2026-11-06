@@ -4,6 +4,7 @@ import fr from "../../../messages/fr.json";
 import { createI18n } from "@/i18n/create-i18n";
 import {
   fileAssociationErrorMessage,
+  isFailedFileError,
   storedFileErrorMessage,
 } from "@/lib/stored-file-error";
 import {
@@ -98,5 +99,26 @@ describe("fileAssociationErrorMessage", () => {
         data: { code: "BAD_REQUEST" },
       }),
     ).toBe("Plain message");
+  });
+});
+
+describe("isFailedFileError", () => {
+  it.each([
+    "errors.files.failedToProcess",
+    "errors.files.failedToProcessWithReason",
+  ])("recognizes %s whatever the message says", (key) => {
+    expect(
+      isFailedFileError({ message: "Autre texte", data: { i18n: { key } } }),
+    ).toBe(true);
+  });
+
+  it("ignores other errors, even ones that mention a failure", () => {
+    expect(
+      isFailedFileError({
+        message: "This file failed to process",
+        data: { i18n: { key: "errors.notFoundItems.file" } },
+      }),
+    ).toBe(false);
+    expect(isFailedFileError({ message: "failed to process" })).toBe(false);
   });
 });
