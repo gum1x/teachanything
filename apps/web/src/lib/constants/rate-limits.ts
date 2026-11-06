@@ -15,7 +15,6 @@ export const RECRAWLS_PER_HOUR = 5;
  * timestamp Upstash returns with a denied request. Clamped to at least one
  * minute so a sub-minute remainder never renders "in 0 minutes".
  */
-export function formatRetryAfter(reset: number, now: number = Date.now()) {
-  const minutes = Math.max(1, Math.ceil((reset - now) / 60_000));
-  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+export function retryAfterMinutes(reset: number, now: number = Date.now()) {
+  return Math.max(1, Math.ceil((reset - now) / 60_000));
 }

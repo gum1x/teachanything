@@ -609,6 +609,9 @@
       "crawlDepthTooBig": "La profundidad de rastreo no puede superar {max, number}",
       "crawlDepthTooSmall": "La profundidad de rastreo debe ser al menos {min, number}",
       "invalidUrl": "Escriba una URL válida",
+      "tooManyPatterns": "Use como máximo {max, number} patrones de URL por lista",
+      "patternTooLong": "Cada patrón de URL puede tener como máximo {max, number} caracteres",
+      "patternInvalidCharacters": "Los patrones de URL solo pueden contener letras sin acentos, números, espacios y - _ / . *",
       "invalidInput": "Entrada no válida"
     },
     "progress": {
@@ -1287,6 +1290,7 @@
     "crawler": {
       "urlNotAllowed": "Esta URL no está permitida",
       "urlUnreachable": "No se pudo acceder a esa URL. Compruebe que sea correcta y de acceso público.",
+      "urlUnreachableStatus": "No se pudo acceder a esa URL ({status}). Compruebe que sea correcta y de acceso público.",
       "duplicateUrl": "Ya agregó esta URL como fuente web",
       "crawlInProgress": "Ya hay un rastreo en curso",
       "crawlNotRunning": "Este rastreo no está en curso.",

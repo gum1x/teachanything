@@ -609,6 +609,9 @@
       "crawlDepthTooBig": "Crawl depth cannot exceed {max, number}",
       "crawlDepthTooSmall": "Crawl depth must be at least {min, number}",
       "invalidUrl": "Please enter a valid URL",
+      "tooManyPatterns": "Use at most {max, number} URL patterns per list",
+      "patternTooLong": "Each URL pattern can have at most {max, number} characters",
+      "patternInvalidCharacters": "URL patterns can only use unaccented letters, numbers, spaces and - _ / . *",
       "invalidInput": "Invalid input"
     },
     "progress": {
@@ -1287,6 +1290,7 @@
     "crawler": {
       "urlNotAllowed": "URL is not allowed",
       "urlUnreachable": "Could not reach that URL. Please check it's correct and publicly accessible.",
+      "urlUnreachableStatus": "Could not reach that URL ({status}). Please check it's correct and publicly accessible.",
       "duplicateUrl": "You've already added this URL as a web source",
       "crawlInProgress": "A crawl is already in progress",
       "crawlNotRunning": "This crawl is not running.",

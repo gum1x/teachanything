@@ -96,6 +96,9 @@ export const user = pgTable("user", {
   department: text("department"),
   facultyWebpage: text("faculty_webpage"),
   country: text("country"),
+  preferredLocale: text("preferred_locale", {
+    enum: ["en", "fr", "es", "de"],
+  }), // null: follow the browser's language
   status: userStatusEnum("status").default("pending").notNull(),
   role: userRoleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

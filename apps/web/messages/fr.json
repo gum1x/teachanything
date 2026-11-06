@@ -609,6 +609,9 @@
       "crawlDepthTooBig": "La profondeur d’exploration ne peut pas dépasser {max, number}",
       "crawlDepthTooSmall": "La profondeur d’exploration doit être d’au moins {min, number}",
       "invalidUrl": "Veuillez saisir une URL valide",
+      "tooManyPatterns": "Utilisez au plus {max, number} modèles d’URL par liste",
+      "patternTooLong": "Chaque modèle d’URL peut contenir au plus {max, number} caractères",
+      "patternInvalidCharacters": "Les modèles d’URL ne peuvent contenir que des lettres sans accent, des chiffres, des espaces et - _ / . *",
       "invalidInput": "Saisie non valide"
     },
     "progress": {
@@ -1287,6 +1290,7 @@
     "crawler": {
       "urlNotAllowed": "Cette URL n’est pas autorisée",
       "urlUnreachable": "Impossible d’accéder à cette URL. Vérifiez qu’elle est correcte et accessible publiquement.",
+      "urlUnreachableStatus": "Impossible d’accéder à cette URL ({status}). Vérifiez qu’elle est correcte et accessible publiquement.",
       "duplicateUrl": "Vous avez déjà ajouté cette URL comme source web",
       "crawlInProgress": "Une exploration est déjà en cours",
       "crawlNotRunning": "Cette exploration n’est pas en cours.",

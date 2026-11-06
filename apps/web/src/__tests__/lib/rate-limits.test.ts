@@ -3,34 +3,34 @@ import {
   CRAWL_SOURCES_PER_HOUR,
   MANUAL_URLS_PER_HOUR,
   RECRAWLS_PER_HOUR,
-  formatRetryAfter,
+  retryAfterMinutes,
 } from "@/lib/constants/rate-limits";
 
 const NOW = 1_700_000_000_000;
 
-describe("formatRetryAfter", () => {
+describe("retryAfterMinutes", () => {
   it("rounds a partial minute up", () => {
-    expect(formatRetryAfter(NOW + 90_000, NOW)).toBe("2 minutes");
+    expect(retryAfterMinutes(NOW + 90_000, NOW)).toBe(2);
   });
 
   it("reports a full hour", () => {
-    expect(formatRetryAfter(NOW + 60 * 60_000, NOW)).toBe("60 minutes");
+    expect(retryAfterMinutes(NOW + 60 * 60_000, NOW)).toBe(60);
   });
 
   it("singularizes one minute", () => {
-    expect(formatRetryAfter(NOW + 60_000, NOW)).toBe("1 minute");
+    expect(retryAfterMinutes(NOW + 60_000, NOW)).toBe(1);
   });
 
   it("clamps a sub-minute remainder to one minute", () => {
-    expect(formatRetryAfter(NOW + 5_000, NOW)).toBe("1 minute");
+    expect(retryAfterMinutes(NOW + 5_000, NOW)).toBe(1);
   });
 
   it("clamps a reset that has already passed", () => {
-    expect(formatRetryAfter(NOW - 120_000, NOW)).toBe("1 minute");
+    expect(retryAfterMinutes(NOW - 120_000, NOW)).toBe(1);
   });
 
   it("clamps a missing reset timestamp", () => {
-    expect(formatRetryAfter(0, NOW)).toBe("1 minute");
+    expect(retryAfterMinutes(0, NOW)).toBe(1);
   });
 });
 

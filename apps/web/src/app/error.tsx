@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 
 export default function Error({
   error,
@@ -10,6 +11,7 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useTranslation();
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -27,7 +29,7 @@ export default function Error({
             onClick={reset}
             className="rounded-md bg-primary px-6 py-3 text-primary-foreground hover:bg-primary/90"
           >
-            Try Again
+            {t("common.actions.tryAgain")}
           </button>
           <Link
             href="/"

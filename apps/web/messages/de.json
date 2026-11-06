@@ -609,6 +609,9 @@
       "crawlDepthTooBig": "Die Crawl-Tiefe darf {max, number} nicht überschreiten",
       "crawlDepthTooSmall": "Die Crawl-Tiefe muss mindestens {min, number} betragen",
       "invalidUrl": "Bitte geben Sie eine gültige URL ein",
+      "tooManyPatterns": "Verwenden Sie höchstens {max, number} URL-Muster pro Liste",
+      "patternTooLong": "Jedes URL-Muster darf höchstens {max, number} Zeichen enthalten",
+      "patternInvalidCharacters": "URL-Muster dürfen nur Buchstaben ohne Akzente oder Umlaute, Ziffern, Leerzeichen und - _ / . * enthalten",
       "invalidInput": "Ungültige Eingabe"
     },
     "progress": {
@@ -1287,6 +1290,7 @@
     "crawler": {
       "urlNotAllowed": "Diese URL ist nicht zulässig",
       "urlUnreachable": "Diese URL ist nicht erreichbar. Bitte prüfen Sie, ob sie korrekt und öffentlich zugänglich ist.",
+      "urlUnreachableStatus": "Diese URL ist nicht erreichbar ({status}). Bitte prüfen Sie, ob sie korrekt und öffentlich zugänglich ist.",
       "duplicateUrl": "Sie haben diese URL bereits als Webquelle hinzugefügt",
       "crawlInProgress": "Es läuft bereits ein Crawl",
       "crawlNotRunning": "Dieser Crawl läuft nicht.",

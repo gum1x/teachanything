@@ -17,6 +17,7 @@ import {
   AddFullWebSourceDialog,
   SingleWebpageForm,
 } from "@/components/chatbot/web-sources/WebSourceForms";
+import { useTranslation } from "react-i18next";
 
 /**
  * Header actions for adding a web source. Two clear, separate paths:
@@ -24,6 +25,7 @@ import {
  * are created unattached; attach them to chatbots later from the table.
  */
 export function AddWebSourcePanel() {
+  const { t } = useTranslation();
   const [crawlDialogOpen, setCrawlDialogOpen] = useState(false);
   const [singleDialogOpen, setSingleDialogOpen] = useState(false);
 
@@ -59,15 +61,14 @@ export function AddWebSourcePanel() {
         <DialogTrigger asChild>
           <Button variant="outline">
             <LinkIcon className="h-4 w-4 mr-2" />
-            Add single page
+            {t("webSources.add.addSinglePage")}
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>Add a single page</DialogTitle>
+            <DialogTitle>{t("webSources.add.singlePageTitle")}</DialogTitle>
             <DialogDescription>
-              Adds only this page to your library. The crawler does not follow
-              its links.
+              {t("webSources.add.singlePageDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
