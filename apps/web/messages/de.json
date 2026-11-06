@@ -853,8 +853,7 @@
       "save": "Sprache speichern",
       "applying": "Wird angewendet…",
       "saveFailed": "Die Sprache konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
-      "unconfirmed": "Die Änderung konnte nicht bestätigt werden. Versuchen Sie es erneut, damit Ihre Sprache sicher gespeichert wird.",
-      "applyTimeout": "Ihre Sprache wurde gespeichert, aber die Seite wurde noch nicht aktualisiert."
+      "unconfirmed": "Die Änderung konnte nicht bestätigt werden. Versuchen Sie es erneut, damit Ihre Sprache sicher gespeichert wird."
     },
     "profile": {
       "name": "Name",

@@ -853,8 +853,7 @@
       "save": "Save language",
       "applying": "Applying...",
       "saveFailed": "Couldn't save your language. Please try again.",
-      "unconfirmed": "We couldn't confirm the change. Retry to make sure your language is saved.",
-      "applyTimeout": "Your language is saved, but the page hasn't updated yet."
+      "unconfirmed": "We couldn't confirm the change. Retry to make sure your language is saved."
     },
     "profile": {
       "name": "Name",

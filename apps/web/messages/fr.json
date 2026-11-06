@@ -853,8 +853,7 @@
       "save": "Enregistrer la langue",
       "applying": "Application…",
       "saveFailed": "Impossible d’enregistrer la langue. Veuillez réessayer.",
-      "unconfirmed": "Nous n’avons pas pu confirmer la modification. Réessayez pour vous assurer que votre langue est bien enregistrée.",
-      "applyTimeout": "Votre langue est enregistrée, mais la page n’a pas encore été mise à jour."
+      "unconfirmed": "Nous n’avons pas pu confirmer la modification. Réessayez pour vous assurer que votre langue est bien enregistrée."
     },
     "profile": {
       "name": "Nom",

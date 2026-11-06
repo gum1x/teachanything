@@ -21,6 +21,7 @@ import { MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { RouterOutputs } from "@/lib/trpc";
 import { useTranslation } from "react-i18next";
+import { formatChartDate } from "@/components/chatbot/analytics-tab/formatters";
 
 type MessageData = RouterOutputs["analytics"]["getTotalMessagesPerMonth"];
 
@@ -53,10 +54,7 @@ export function MessagesChart({
   // Format message data for chart
   const chartData =
     data?.data?.map((item) => ({
-      date: new Date(item.date).toLocaleDateString(i18n.language, {
-        month: "short",
-        day: "numeric",
-      }),
+      date: formatChartDate(item.date, i18n.language),
       messages: item.count,
     })) || [];
 

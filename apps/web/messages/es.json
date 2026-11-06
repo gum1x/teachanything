@@ -853,8 +853,7 @@
       "save": "Guardar idioma",
       "applying": "Aplicando…",
       "saveFailed": "No se pudo guardar el idioma. Vuelva a intentarlo.",
-      "unconfirmed": "No pudimos confirmar el cambio. Vuelva a intentarlo para asegurarse de que su idioma quede guardado.",
-      "applyTimeout": "Su idioma se guardó, pero la página aún no se ha actualizado."
+      "unconfirmed": "No pudimos confirmar el cambio. Vuelva a intentarlo para asegurarse de que su idioma quede guardado."
     },
     "profile": {
       "name": "Nombre",

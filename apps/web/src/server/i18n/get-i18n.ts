@@ -72,8 +72,14 @@ export const getI18nProps = cache(async function getI18nProps(): Promise<{
   };
 });
 
-/** The browser tab title for dashboard and chatbot pages. */
+/** The browser tab title for dashboard pages. */
 export async function generateDashboardMetadata(): Promise<Metadata> {
   const { locale, messages } = await getI18nProps();
   return { title: createI18n(locale, messages).t("nav.dashboard") };
+}
+
+/** The browser tab title for chatbot pages. */
+export async function generateChatbotMetadata(): Promise<Metadata> {
+  const { locale, messages } = await getI18nProps();
+  return { title: createI18n(locale, messages).t("nav.chatbots") };
 }

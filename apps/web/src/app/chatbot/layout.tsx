@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { LocalizedDashboardShell } from "@/components/dashboard/LocalizedDashboardShell";
 import { DashboardShellSkeleton } from "@/components/ui/skeletons";
-import { generateDashboardMetadata } from "@/server/i18n/get-i18n";
+import { generateChatbotMetadata } from "@/server/i18n/get-i18n";
 
-export const generateMetadata = generateDashboardMetadata;
+export const generateMetadata = generateChatbotMetadata;
 
 export default function ChatbotLayout({
   children,

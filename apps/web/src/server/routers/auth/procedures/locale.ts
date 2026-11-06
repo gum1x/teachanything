@@ -3,13 +3,11 @@ import { z } from "zod";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { user } from "@teachanything/db/schema";
-import { env } from "@/lib/env";
 import { isEnabledLocale, LOCALE_COOKIE, type Locale } from "@/i18n/config";
 import { appError } from "@/server/app-error";
 import { checkRateLimit, localeUpdateRateLimit } from "@/server/rate-limit";
 import { retryAfterMinutes } from "@/lib/constants/rate-limits";
-
-const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
+import { LOCALE_COOKIE_OPTIONS } from "@/server/auth/locale-cookie";
 
 /**
  * Save the signed-in user's dashboard language, or clear it with `null` to
@@ -51,13 +49,7 @@ export const updatePreferredLocaleProcedure = protectedProcedure
     if (input.locale === null) {
       cookieStore.delete(LOCALE_COOKIE);
     } else {
-      cookieStore.set(LOCALE_COOKIE, input.locale, {
-        path: "/",
-        sameSite: "lax",
-        httpOnly: true,
-        secure: env.NODE_ENV === "production",
-        maxAge: ONE_YEAR_SECONDS,
-      });
+      cookieStore.set(LOCALE_COOKIE, input.locale, LOCALE_COOKIE_OPTIONS);
     }
 
     return { locale: input.locale };

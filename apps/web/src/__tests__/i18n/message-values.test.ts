@@ -14,6 +14,10 @@ type Node = {
 // A value left out of `t()` makes ICU show the raw message source to the user.
 const CALL =
   /(?:\bt\(\s*|appError\(\s*"[A-Z_]+",\s*)["']([a-zA-Z]+\.[^"'`]+)["']\s*(,|\))/g;
+// t(isOpen ? "a.close" : "a.open", { name })
+const TERNARY_CALL =
+  /\bt\(\s*[^"'`()]+\?\s*["']([a-zA-Z]+\.[^"'`]+)["']\s*:\s*["']([a-zA-Z]+\.[^"'`]+)["']\s*(,|\))/g;
+const TRANS = /<Trans\b/g;
 const LITERAL = 0;
 const POUND = 7;
 const TAG = 8;
@@ -44,11 +48,46 @@ function lookup(key: string): unknown {
 function restOfCall(source: string, from: number): string {
   let depth = 1;
   let i = from;
+  let quote = "";
   for (; depth > 0 && i < source.length; i++) {
-    if ("([{".includes(source[i]!)) depth++;
-    if (")]}".includes(source[i]!)) depth--;
+    const char = source[i]!;
+    if (quote) {
+      if (char === "\\") i++;
+      else if (char === quote) quote = "";
+    } else if ("\"'`".includes(char)) {
+      quote = char;
+    } else if ("([{".includes(char)) {
+      depth++;
+    } else if (")]}".includes(char)) {
+      depth--;
+    }
   }
   return source.slice(from, i);
+}
+
+/** The attributes of the JSX tag starting at `from`, up to its closing `>`. */
+function jsxAttributes(source: string, from: number): string {
+  let depth = 0;
+  let i = from;
+  for (; i < source.length; i++) {
+    const char = source[i]!;
+    if (char === "{") depth++;
+    if (char === "}") depth--;
+    if (char === ">" && depth === 0) break;
+  }
+  return source.slice(from, i);
+}
+
+/** Whether an object literal passes `name` as a key or a shorthand. */
+function passesValue(name: string, args: string): boolean {
+  return new RegExp(`[{,]\\s*${name}\\s*[:,}]`).test(args);
+}
+
+function namesNeeded(key: string): string[] {
+  const message = lookup(key);
+  if (typeof message !== "string") return [];
+  const ast = new IntlMessageFormat(message, "en").getAst() as Node[];
+  return [...argumentNames(ast)];
 }
 
 function sourceFiles(dir: string): string[] {
@@ -63,26 +102,72 @@ function sourceFiles(dir: string): string[] {
 describe("translated message calls", () => {
   it("pass every value their English message needs", () => {
     const missing: string[] = [];
+    let ternaryCalls = 0;
+    let transCalls = 0;
+    const check = (key: string, next: string, source: string, end: number) => {
+      const names = namesNeeded(key);
+      if (names.length === 0) return;
+      const rest = next === ")" ? "" : restOfCall(source, end);
+      // A spread or a variable holding the values cannot be checked here.
+      if (rest.includes("...") || /^\s*\w+\s*\)$/.test(rest)) return;
+      for (const name of names) {
+        if (!passesValue(name, rest)) missing.push(`${key} needs ${name}`);
+      }
+    };
+
     for (const file of sourceFiles(join(process.cwd(), "src"))) {
       const source = readFileSync(file, "utf8");
       for (const match of source.matchAll(CALL)) {
-        const [, key, next] = match;
-        const message = lookup(key!);
-        if (typeof message !== "string") continue;
-        const ast = new IntlMessageFormat(message, "en").getAst() as Node[];
-        const names = [...argumentNames(ast)];
-        if (names.length === 0) continue;
-        const rest =
-          next === ")" ? "" : restOfCall(source, match.index + match[0].length);
-        // A spread or a variable holding the values cannot be checked here.
-        if (rest.includes("...") || /^\s*\w+\s*\)$/.test(rest)) continue;
-        for (const name of names) {
-          if (!new RegExp(`\\b${name}\\b`).test(rest)) {
+        const [text, key, next] = match;
+        check(key!, next!, source, match.index + text.length);
+      }
+      for (const match of source.matchAll(TERNARY_CALL)) {
+        const [text, first, second, next] = match;
+        ternaryCalls++;
+        check(first!, next!, source, match.index + text.length);
+        check(second!, next!, source, match.index + text.length);
+      }
+      for (const match of source.matchAll(TRANS)) {
+        const attributes = jsxAttributes(source, match.index);
+        const key = /\bi18nKey="([^"]+)"/.exec(attributes)?.[1];
+        if (!key || attributes.includes("...")) continue;
+        transCalls++;
+        for (const name of namesNeeded(key)) {
+          if (
+            !passesValue(name, attributes) &&
+            !new RegExp(`\\b${name}=`).test(attributes)
+          ) {
             missing.push(`${key} needs ${name}`);
           }
         }
       }
     }
     expect(missing).toEqual([]);
+    expect(ternaryCalls).toBeGreaterThan(0);
+    expect(transCalls).toBeGreaterThan(0);
+  });
+});
+
+describe("the scanner", () => {
+  it.each([
+    ["{ count }", true],
+    ["{ count: 1 }", true],
+    ["{ total: 2, count: 1 }", true],
+    ["{\n  count,\n}", true],
+    ["{ total: item.count }", false],
+    ["{ total: count }", false],
+    ["{ total: count, other: 1 }", false],
+  ])("reads %j as passing count: %s", (args, expected) => {
+    expect(passesValue("count", args)).toBe(expected);
+  });
+
+  it("ignores brackets inside strings when finding the end of a call", () => {
+    const source = `"a)", { count: 1 }) + other(`;
+    expect(restOfCall(source, 0)).toBe(`"a)", { count: 1 })`);
+  });
+
+  it("reads past nested JSX when finding the end of a tag", () => {
+    const source = `<Trans components={{ a: <a href="/" /> }} count={1} />`;
+    expect(jsxAttributes(source, 0)).toContain("count={1}");
   });
 });

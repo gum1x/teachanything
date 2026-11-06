@@ -13,15 +13,17 @@ export function formatDurationSeconds(seconds: number, t: TFunction): string {
       : t("analytics.duration.minutes", { minutes });
   }
   const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
+  const minutes = Math.floor((seconds % 3600) / 60);
   return minutes > 0
     ? t("analytics.duration.hoursMinutes", { hours, minutes })
     : t("analytics.duration.hours", { hours });
 }
 
+/** `date` is a UTC calendar day ("2026-11-06"), so it must not shift to local time. */
 export function formatChartDate(date: string, locale: string): string {
   return new Date(date).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   });
 }

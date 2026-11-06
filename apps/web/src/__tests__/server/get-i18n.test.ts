@@ -32,7 +32,7 @@ jest.unstable_mockModule("@/server/auth/config", () => ({
 }));
 jest.unstable_mockModule("@/lib/logger", () => ({ logError: mockLogError }));
 
-const { getI18nProps, generateDashboardMetadata } =
+const { getI18nProps, generateDashboardMetadata, generateChatbotMetadata } =
   await import("@/server/i18n/get-i18n");
 
 beforeEach(() => {
@@ -95,6 +95,15 @@ describe("generateDashboardMetadata", () => {
     session = { user: { preferredLocale: "fr" } };
     await expect(generateDashboardMetadata()).resolves.toEqual({
       title: "Tableau de bord",
+    });
+  });
+});
+
+describe("generateChatbotMetadata", () => {
+  it("does not title chatbot pages as the dashboard", async () => {
+    session = { user: { preferredLocale: "fr" } };
+    await expect(generateChatbotMetadata()).resolves.toEqual({
+      title: "Chatbots",
     });
   });
 });
