@@ -4,17 +4,28 @@
 
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { DashboardShellSkeleton } from "@/components/ui/skeletons";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { MobileSidebarOverlay } from "@/components/dashboard/MobileSidebarOverlay";
 import { SidebarProvider } from "@/components/dashboard/sidebar-context";
 
+const subscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { data: session, isPending: sessionLoading } = useSession();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  // The session can resolve before this streamed boundary hydrates. Match the
+  // server's skeleton for hydration, then render the current client session.
+  const hydrated = useSyncExternalStore(
+    subscribe,
+    clientSnapshot,
+    serverSnapshot,
+  );
 
   useEffect(() => {
     if (!sessionLoading && !session) {
@@ -22,7 +33,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [session, sessionLoading, router]);
 
-  if (sessionLoading) {
+  if (!hydrated || sessionLoading) {
     return <DashboardShellSkeleton />;
   }
 
