@@ -17,6 +17,8 @@ import { AlertTriangle } from "lucide-react";
 import { groupSourcesByFile } from "@/lib/message-sources";
 import { SourceList } from "./source-list";
 import { extractText } from "@/lib/chat/ui-messages";
+import { isRatableMessage, type MessageRating } from "@/lib/message-rating";
+import { MessageRatingButtons, MessageRatingIndicator } from "./message-rating";
 
 interface ChatMessageProps {
   message: StudyUIMessage;
@@ -35,6 +37,16 @@ interface ChatMessageProps {
    * the dashboard reveal can show what the student submitted per attempt.
    */
   studyAttempts?: Record<string, StudyResponsePayload[]>;
+  /**
+   * Saves a student's rating (`null` clears it). Set only where students chat;
+   * the thumbs show when it is set. Must be stable (memoized).
+   */
+  onRate?: (
+    messageId: string,
+    rating: MessageRating | null,
+  ) => Promise<boolean>;
+  /** The student's rating of this response, if any. */
+  rating?: MessageRating;
 }
 
 /**
@@ -71,6 +83,8 @@ function ChatMessageImpl({
   readOnly = false,
   onStudyAttempt,
   studyAttempts,
+  onRate,
+  rating,
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const sources = useMemo(
@@ -81,6 +95,7 @@ function ChatMessageImpl({
   const textContent = extractText(message.parts);
   const hasContent = textContent.trim().length > 0;
   const hasVisiblePart = message.parts.some(isVisiblePart);
+  const canRate = onRate !== undefined && isRatableMessage(message);
 
   if (
     !isUser &&
@@ -214,17 +229,29 @@ function ChatMessageImpl({
           )}
         </div>
       </Message>
-      {hasContent && (
-        <div className="pl-9 md:pl-12">
-          <MessageActions className="opacity-0 group-hover:opacity-100 transition-opacity">
-            <MessageAction tooltip="Copy message">
-              <CopyButton
-                text={textContent}
-                successMessage="Message copied to clipboard"
-                errorMessage="Failed to copy message"
+      {(hasContent || canRate || rating !== undefined) && (
+        <div className="pl-9 md:pl-12 flex items-center gap-2">
+          {canRate ? (
+            <MessageActions>
+              <MessageRatingButtons
+                rating={rating ?? null}
+                onRate={(next) => onRate(message.id, next)}
               />
-            </MessageAction>
-          </MessageActions>
+            </MessageActions>
+          ) : (
+            rating !== undefined && <MessageRatingIndicator rating={rating} />
+          )}
+          {hasContent && (
+            <MessageActions className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <MessageAction tooltip="Copy message">
+                <CopyButton
+                  text={textContent}
+                  successMessage="Message copied to clipboard"
+                  errorMessage="Failed to copy message"
+                />
+              </MessageAction>
+            </MessageActions>
+          )}
         </div>
       )}
     </div>

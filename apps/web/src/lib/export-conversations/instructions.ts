@@ -64,8 +64,9 @@ export function buildInstructions(
       "  for the conversation number/id, session, turn, role, timestamp,",
     );
     lines.push(
-      "  message text and cited sources — handy for filtering and analysis.",
+      "  message text, cited sources and the student's rating (up / down) —",
     );
+    lines.push("  handy for filtering and analysis.");
   }
   if (formats.includes("text")) {
     lines.push("");
@@ -84,6 +85,15 @@ export function buildInstructions(
     "each format: the questions, the correct answers, and the student's own",
   );
   lines.push("responses and score for each attempt.");
+
+  lines.push("");
+  lines.push(
+    "Where a student gave a response a thumbs up or thumbs down, the rating",
+  );
+  lines.push(
+    "appears with that response. A rating is the student's own impression of",
+  );
+  lines.push("the answer, not a measure of whether it was correct.");
 
   lines.push("");
   lines.push("-".repeat(40));

@@ -39,6 +39,7 @@ function args(overrides: Partial<PersistArgs> = {}): PersistArgs {
   } as StudyUIMessage;
   return {
     responseMessage,
+    assistantMessageId: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff",
     database: fakeDatabase().database,
     conversationId: "c1",
     chatbotId: "b1",
@@ -80,6 +81,14 @@ describe("persistTurn", () => {
         ragUsed: true,
       }),
     );
+  });
+
+  it("gives the assistant row the id the browser was sent for the message", async () => {
+    const { database, inserts } = fakeDatabase();
+    await persistTurn(args({ database }));
+
+    const message = inserts.find((i) => i.table === messages);
+    expect(message?.values.id).toBe("6f9619ff-8b86-4d01-b42d-00cf4fc964ff");
   });
 
   it("records where the turn's time went, including the pre-stream part", async () => {

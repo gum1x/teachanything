@@ -6,6 +6,7 @@ import {
   timestamp,
   vector,
   integer,
+  smallint,
   boolean,
   pgEnum,
   index,
@@ -425,6 +426,36 @@ export const studyToolResponses = pgTable(
       table.toolCallId,
       table.attempt,
     ),
+  ],
+);
+
+// Student thumbs up / down on an assistant response, one row per message.
+// `chatbotId` is denormalized so analytics does not join through `messages`.
+export const messageRatings = pgTable(
+  "message_ratings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .references(() => messages.id, { onDelete: "cascade" })
+      .notNull()
+      .unique(),
+    conversationId: uuid("conversation_id")
+      .references(() => conversations.id, { onDelete: "cascade" })
+      .notNull(),
+    chatbotId: uuid("chatbot_id")
+      .references(() => chatbots.id, { onDelete: "cascade" })
+      .notNull(),
+    rating: smallint("rating").$type<1 | -1>().notNull(), // 1 = up, -1 = down
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("message_ratings_chatbot_id_created_at_idx").on(
+      table.chatbotId,
+      table.createdAt,
+    ),
+    // Per-conversation reads, and the cascade when a conversation is deleted.
+    index("message_ratings_conversation_id_idx").on(table.conversationId),
   ],
 );
 

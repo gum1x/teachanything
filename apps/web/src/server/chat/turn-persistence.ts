@@ -59,6 +59,8 @@ export function beginUserMessageInsert(
  */
 export async function persistTurn(args: {
   responseMessage: StudyUIMessage;
+  /** Row id for the assistant message; the browser was sent the same id. */
+  assistantMessageId: string;
   database: typeof DbType;
   conversationId: string;
   chatbotId: string;
@@ -135,6 +137,7 @@ export async function persistTurn(args: {
     if (content.trim() || hasStudyPart) {
       inserts.push(
         args.database.insert(messages).values({
+          id: args.assistantMessageId,
           conversationId: args.conversationId,
           role: "assistant",
           content,

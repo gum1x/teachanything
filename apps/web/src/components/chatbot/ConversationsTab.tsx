@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MessageSquare, Search } from "lucide-react";
+import { MessageSquare, Search, ThumbsDown } from "lucide-react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   PANEL_CONTENT,
@@ -39,14 +40,15 @@ export function ConversationsTab({ chatbotId }: ConversationsTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 300);
   const [sortBy, setSortBy] = useState<SortBy>("recent");
+  const [hasThumbsDown, setHasThumbsDown] = useState(false);
   const [offset, setOffset] = useState(0);
 
   const { limit, setResultsRef } = usePanelRows(setOffset);
 
-  // Reset pagination when the effective query or sort changes.
+  // Reset pagination when the effective query, sort or filter changes.
   useEffect(() => {
     setOffset(0);
-  }, [debouncedSearch, sortBy]);
+  }, [debouncedSearch, sortBy, hasThumbsDown]);
 
   if (selectedConversationId) {
     return (
@@ -97,13 +99,30 @@ export function ConversationsTab({ chatbotId }: ConversationsTabProps) {
               <SelectItem value="longestDuration">Longest Duration</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={() => setHasThumbsDown((prev) => !prev)}
+            aria-pressed={hasThumbsDown}
+            className={
+              hasThumbsDown
+                ? "shrink-0 bg-accent text-accent-foreground"
+                : "shrink-0"
+            }
+          >
+            <ThumbsDown aria-hidden="true" />
+            Has thumbs down
+          </Button>
         </div>
 
         <div ref={setResultsRef} className="flex flex-1 min-h-0 flex-col">
           <ConversationsResults
+            // Remounts on toggle, so chats selected under the other filter
+            // cannot be deleted or exported while hidden.
+            key={hasThumbsDown ? "thumbs-down" : "all"}
             chatbotId={chatbotId}
             search={debouncedSearch}
             sortBy={sortBy}
+            hasThumbsDown={hasThumbsDown}
             limit={limit}
             offset={offset}
             onSelectConversation={setSelectedConversationId}

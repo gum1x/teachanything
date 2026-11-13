@@ -294,3 +294,62 @@ describe("buildExportFiles", () => {
     );
   });
 });
+
+describe("student ratings in exports", () => {
+  /** The fixture conversation with the assistant turn rated as given. */
+  function withRating(rating: 1 | -1 | null): ConversationsExport {
+    const base = makeExport();
+    return {
+      ...base,
+      conversations: base.conversations.map((conversation) => ({
+        ...conversation,
+        messages: conversation.messages.map((message) =>
+          message.role === "assistant" ? { ...message, rating } : message,
+        ),
+      })),
+    };
+  }
+
+  /** The CSV as rows of raw cells (the fixture has no commas inside quotes
+   * that would split a cell, apart from the message column). */
+  function lastCells(csv: string): string[] {
+    return csv
+      .replace("\uFEFF", "")
+      .split("\r\n")
+      .map((line) => line.slice(line.lastIndexOf(",") + 1));
+  }
+
+  it("adds rating as the last CSV column, so existing columns keep their place", () => {
+    const [header, studentRow, assistantRow] = lastCells(
+      buildCsv(withRating(1)),
+    );
+    expect(header).toBe('"rating"');
+    // Only assistant responses can be rated.
+    expect(studentRow).toBe('""');
+    expect(assistantRow).toBe('"up"');
+  });
+
+  it("writes down for a thumbs down and leaves unrated responses blank", () => {
+    expect(lastCells(buildCsv(withRating(-1)))[2]).toBe('"down"');
+    expect(lastCells(buildCsv(withRating(null)))[2]).toBe('""');
+    // Payloads from before ratings existed have no rating field at all.
+    expect(lastCells(buildCsv(makeExport()))[2]).toBe('""');
+  });
+
+  it("shows the rating under the response in the text export", () => {
+    expect(buildText(withRating(1))).toContain("Student rating: Thumbs up");
+    expect(buildText(withRating(-1))).toContain("Student rating: Thumbs down");
+    expect(buildText(withRating(null))).not.toContain("Student rating");
+  });
+
+  it("shows the rating under the response in the HTML export", () => {
+    expect(buildHtml(withRating(-1))).toContain("Student rating: thumbs down");
+    expect(buildHtml(withRating(null))).not.toContain("Student rating");
+  });
+
+  it("explains the rating in the README", () => {
+    const readme = buildInstructions(makeExport(), ["csv"]);
+    expect(readme).toContain("student's rating (up / down)");
+    expect(readme).toContain("not a measure of whether it was correct");
+  });
+});

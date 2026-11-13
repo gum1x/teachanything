@@ -9,6 +9,7 @@ import {
   roundToOne,
   startOfUtcDay,
   startOfUtcWeek,
+  summarizeRatings,
 } from "@/server/routers/analytics/helpers";
 
 describe("startOfUtcDay", () => {
@@ -96,5 +97,63 @@ describe("roundToOne", () => {
 
   it("handles negatives", () => {
     expect(roundToOne(-1.24)).toBe(-1.2);
+  });
+});
+
+describe("summarizeRatings", () => {
+  const start = new Date("2026-08-17T15:30:00.000Z");
+  const now = new Date("2026-08-20T09:00:00.000Z");
+
+  it("totals the range and reports the share rated helpful", () => {
+    const summary = summarizeRatings(
+      [
+        { date: "2026-08-18", up: 3, down: 1 },
+        { date: "2026-08-20", up: 3, down: 1 },
+      ],
+      start,
+      now,
+    );
+    expect(summary.totalRatings).toBe(8);
+    expect(summary.helpfulCount).toBe(6);
+    expect(summary.helpfulPercentage).toBe(75);
+  });
+
+  it("fills every UTC day from the start to now, zero where nobody rated", () => {
+    const summary = summarizeRatings(
+      [{ date: "2026-08-18", up: 2, down: 1 }],
+      start,
+      now,
+    );
+    expect(summary.daily).toEqual([
+      { date: "2026-08-17", up: 0, down: 0 },
+      { date: "2026-08-18", up: 2, down: 1 },
+      { date: "2026-08-19", up: 0, down: 0 },
+      { date: "2026-08-20", up: 0, down: 0 },
+    ]);
+  });
+
+  it("reports no percentage, rather than 0%, when nothing was rated", () => {
+    const summary = summarizeRatings([], start, now);
+    expect(summary.totalRatings).toBe(0);
+    expect(summary.helpfulPercentage).toBeNull();
+    expect(summary.daily).toHaveLength(4);
+  });
+
+  it("reports 0% when every rating was a thumbs down", () => {
+    const summary = summarizeRatings(
+      [{ date: "2026-08-19", up: 0, down: 4 }],
+      start,
+      now,
+    );
+    expect(summary.helpfulPercentage).toBe(0);
+  });
+
+  it("rounds the percentage to a whole number", () => {
+    const summary = summarizeRatings(
+      [{ date: "2026-08-19", up: 2, down: 1 }],
+      start,
+      now,
+    );
+    expect(summary.helpfulPercentage).toBe(67);
   });
 });

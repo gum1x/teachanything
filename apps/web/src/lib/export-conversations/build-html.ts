@@ -14,6 +14,7 @@ import {
   plural,
 } from "./format-helpers";
 import { EXPORT_HTML_STYLES } from "./html-styles";
+import { ratingLabel } from "@/lib/message-rating";
 
 // Icon glyphs (lucide), inlined so the page needs no icon font/library.
 const ICON = {
@@ -51,12 +52,16 @@ function renderMessageHtml(message: ExportMessage): string {
           )
           .join("")}</div>`
       : "";
+  const rating = message.rating
+    ? `<div class="rating">Student rating: ${ratingLabel(message.rating).toLowerCase()}</div>`
+    : "";
   return `<div class="row assistant">
       <div class="avatar" role="img" aria-label="Teach Anything"></div>
       <div class="asst-col">
         ${body}
         ${studyHtml}
         ${sources}
+        ${rating}
       </div>
     </div>`;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MessageSquare, Search } from "lucide-react";
+import { MessageSquare, Search, ThumbsDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ export function ConversationsResults({
   chatbotId,
   search,
   sortBy,
+  hasThumbsDown,
   limit,
   offset,
   onSelectConversation,
@@ -21,17 +22,18 @@ export function ConversationsResults({
   chatbotId: string;
   search: string;
   sortBy: SortBy;
+  hasThumbsDown: boolean;
   limit: number;
   offset: number;
   onSelectConversation: (id: string) => void;
   onOffsetChange: (offset: number) => void;
 }) {
   const listQuery = trpc.analytics.getConversationsList.useQuery(
-    { chatbotId, sortBy, limit, offset },
+    { chatbotId, sortBy, hasThumbsDown, limit, offset },
     { enabled: !search, placeholderData: keepPreviousData },
   );
   const searchResultsQuery = trpc.analytics.searchConversations.useQuery(
-    { chatbotId, query: search, limit, offset },
+    { chatbotId, query: search, hasThumbsDown, limit, offset },
     { enabled: !!search, placeholderData: keepPreviousData },
   );
 
@@ -81,6 +83,17 @@ export function ConversationsResults({
   }
 
   if (!data || data.conversations.length === 0) {
+    if (hasThumbsDown && !search) {
+      return (
+        <div className="flex flex-1 min-h-0 flex-col items-center justify-center text-center text-muted-foreground">
+          <ThumbsDown className="h-12 w-12 mb-4 opacity-50" />
+          <p className="text-lg font-medium">No chats with a thumbs down</p>
+          <p className="text-sm mt-1">
+            Chats appear here when a student rates a response thumbs down.
+          </p>
+        </div>
+      );
+    }
     if (search) {
       return (
         <div className="flex flex-1 min-h-0 flex-col items-center justify-center text-center text-muted-foreground">

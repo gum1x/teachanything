@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
       <main className="max-w-3xl mx-auto px-6 py-12">
         <article className={s.prose}>
           <h1>Privacy Policy</h1>
-          <p data-legal-meta>Last updated September 22, 2026</p>
+          <p data-legal-meta>Last updated November 11, 2026</p>
 
           <p>
             This Privacy Notice for <BrandName /> (&ldquo;we,&rdquo;
@@ -271,6 +271,12 @@ export default function PrivacyPolicyPage() {
             for details). You should not upload files containing sensitive
             personal information of third parties (such as student records)
             unless you have appropriate authorization to do so.
+          </p>
+          <p>
+            <strong>Ratings and Feedback.</strong> Feedback and performance
+            ratings submitted by students regarding the AI chatbot are collected
+            anonymously to improve educational quality. Do not include sensitive
+            personal information in your written feedback.
           </p>
           <p>
             All personal information that you provide to us must be true,

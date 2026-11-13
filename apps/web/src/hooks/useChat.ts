@@ -10,6 +10,7 @@ import {
   postStudyResponse,
   type StudyResponsePayload,
 } from "@/lib/submit-study-response";
+import { postMessageRating, type MessageRating } from "@/lib/message-rating";
 
 /**
  * Chat with a shared/public chatbot (share-token pages + embed widget), backed
@@ -26,6 +27,9 @@ export function useChat(shareToken: string) {
   const [studyAttempts, setStudyAttempts] = useState<
     Record<string, StudyResponsePayload[]>
   >({});
+  // Held here, not in the message row: closing the embed unmounts the rows
+  // but keeps the session.
+  const [ratings, setRatings] = useState<Record<string, MessageRating>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -86,6 +90,27 @@ export function useChat(shareToken: string) {
     [shareToken, sessionId],
   );
 
+  const onRateMessage = useCallback(
+    async (messageId: string, rating: MessageRating | null) => {
+      const saved = await postMessageRating({
+        shareToken,
+        sessionId,
+        messageId,
+        rating,
+      });
+      if (saved) {
+        setRatings((prev) => {
+          const next = { ...prev };
+          if (rating === null) delete next[messageId];
+          else next[messageId] = rating;
+          return next;
+        });
+      }
+      return saved;
+    },
+    [shareToken, sessionId],
+  );
+
   const resetChat = () => {
     // Abort any in-flight stream first: re-keying useChat below discards the old
     // Chat without cancelling its request, so without this the server keeps
@@ -94,6 +119,7 @@ export function useChat(shareToken: string) {
     chat.setMessages([]);
     setCurrentMessage("");
     setStudyAttempts({});
+    setRatings({});
     // Start a fresh server-side conversation (matches the prior behavior). The
     // new id also re-keys useChat, so the transport no longer reloads the
     // old conversation's history on the next send.
@@ -115,5 +141,7 @@ export function useChat(shareToken: string) {
     error,
     onStudyAttempt,
     studyAttempts,
+    ratings,
+    onRateMessage,
   };
 }

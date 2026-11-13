@@ -19,6 +19,7 @@ export function buildCsv(data: ConversationsExport): string {
     "message",
     "sources",
     "study_tools",
+    "rating",
   ];
 
   // CRLF + a UTF-8 BOM so Excel opens accented / non-ASCII content correctly.
@@ -42,6 +43,7 @@ export function buildCsv(data: ConversationsExport): string {
           message.content,
           sources,
           renderStudyToolsText(message.studyTools ?? []),
+          message.rating ? (message.rating === 1 ? "up" : "down") : "",
         ]
           .map(csvCell)
           .join(","),

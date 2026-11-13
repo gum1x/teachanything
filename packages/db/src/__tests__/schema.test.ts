@@ -7,6 +7,7 @@ import {
   fileChunks,
   chatbotFileAssociations,
   userFiles,
+  messageRatings,
   userStatusEnum,
   userRoleEnum,
   processingStatusEnum,
@@ -97,6 +98,25 @@ describe("Database Schema", () => {
         (i) => i.config.name === "user_files_user_id_idx",
       );
       expect(userIdIndex).toBeDefined();
+    });
+
+    it("allows one rating per message on messageRatings", () => {
+      const messageId = getTableConfig(messageRatings).columns.find(
+        (c) => c.name === "message_id",
+      );
+      expect(messageId?.isUnique).toBe(true);
+    });
+
+    it("indexes messageRatings for analytics and per-conversation reads", () => {
+      const names = getTableConfig(messageRatings).indexes.map(
+        (i) => i.config.name,
+      );
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "message_ratings_chatbot_id_created_at_idx",
+          "message_ratings_conversation_id_idx",
+        ]),
+      );
     });
 
     it("defines unique index on chatbotFileAssociations(chatbotId, fileId)", () => {

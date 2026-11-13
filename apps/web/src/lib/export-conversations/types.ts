@@ -1,4 +1,5 @@
 import type { ExportStudyTool } from "@/lib/study-tool-export";
+import type { MessageRating } from "@/lib/message-rating";
 
 export type { ExportStudyTool };
 
@@ -17,6 +18,8 @@ export interface ExportMessage {
   // Study-tool widgets shown in this (assistant) turn, with student attempts.
   // Optional so older payloads without study tools stay valid.
   studyTools?: ExportStudyTool[];
+  // The student's thumbs up / down on this (assistant) turn, if any.
+  rating?: MessageRating | null;
 }
 
 export interface ExportConversation {

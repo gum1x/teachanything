@@ -4,6 +4,7 @@ import { ChatMessage, isVisiblePart } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import type { StudyUIMessage } from "@/server/chat/study-tools";
 import type { StudyResponsePayload } from "@/lib/submit-study-response";
+import type { MessageRating } from "@/lib/message-rating";
 import {
   ChatContainerRoot,
   ChatContainerContent,
@@ -48,6 +49,13 @@ interface ChatInterfaceProps {
   onStudyAttempt?: (toolCallId: string, response: StudyResponsePayload) => void;
   /** Student's own attempts by tool toolCallId, for the chat export. */
   studyAttempts?: Record<string, StudyResponsePayload[]>;
+  /** Student ratings by message id. */
+  ratings?: Record<string, MessageRating>;
+  /** Set only where students chat; without it no rating buttons render. */
+  onRateMessage?: (
+    messageId: string,
+    rating: MessageRating | null,
+  ) => Promise<boolean>;
 }
 
 export function ChatInterface({
@@ -72,6 +80,8 @@ export function ChatInterface({
   voiceInputEnabled = true,
   onStudyAttempt,
   studyAttempts,
+  ratings,
+  onRateMessage,
 }: ChatInterfaceProps) {
   const isStreaming = status === "submitted" || status === "streaming";
   const lastMessage = messages[messages.length - 1];
@@ -172,6 +182,13 @@ export function ChatInterface({
                     showSources={showSources}
                     onStudyAttempt={onStudyAttempt}
                     studyAttempts={studyAttempts}
+                    rating={ratings?.[msg.id]}
+                    // A response still being written cannot be rated yet.
+                    onRate={
+                      isStreaming && msg === lastMessage
+                        ? undefined
+                        : onRateMessage
+                    }
                   />
                 ))}
                 {showIndicator && (

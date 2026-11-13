@@ -1,6 +1,7 @@
 import { renderStudyToolsText } from "@/lib/study-tool-export";
 import type { ConversationsExport } from "./types";
 import { formatDateTime, formatSimilarity, roleLabel } from "./format-helpers";
+import { ratingLabel } from "@/lib/message-rating";
 
 export function buildText(data: ConversationsExport): string {
   const lines: string[] = [];
@@ -41,6 +42,9 @@ export function buildText(data: ConversationsExport): string {
             `    ${sourceIndex + 1}. ${source.fileName} (${formatSimilarity(source.similarity)})`,
           );
         });
+      }
+      if (message.rating) {
+        lines.push(`  Student rating: ${ratingLabel(message.rating)}`);
       }
       lines.push("");
     });

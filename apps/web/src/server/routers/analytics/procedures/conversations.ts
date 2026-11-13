@@ -4,6 +4,7 @@ import {
   conversations,
   messages,
   chatbots,
+  messageRatings,
   studyToolResponses,
 } from "@teachanything/db/schema";
 import type { SQL } from "drizzle-orm";
@@ -15,7 +16,11 @@ import {
   checkRateLimit,
   conversationSearchRateLimit,
 } from "@/server/rate-limit";
-import { buildMessageStatsSubquery } from "../helpers";
+import {
+  buildMessageStatsSubquery,
+  buildRatingStatsSubquery,
+  conversationHasThumbsDown,
+} from "../helpers";
 
 export const getConversationsListProcedure = protectedProcedure
   .input(
@@ -26,19 +31,26 @@ export const getConversationsListProcedure = protectedProcedure
       sortBy: z
         .enum(["recent", "mostMessages", "longestDuration"])
         .default("recent"),
+      // Only chats where a student gave at least one thumbs down.
+      hasThumbsDown: z.boolean().default(false),
     }),
   )
   .query(async ({ ctx, input }) => {
     await assertOwnedChatbot(ctx, input.chatbotId);
 
     const msgStats = buildMessageStatsSubquery(ctx.db, input.chatbotId);
+    const ratingStats = buildRatingStatsSubquery(ctx.db, input.chatbotId);
+    const where = and(
+      eq(conversations.chatbotId, input.chatbotId),
+      input.hasThumbsDown ? conversationHasThumbsDown(ctx.db) : undefined,
+    );
 
     // Count has no join (1:1 subquery doesn't change row count on leftJoin,
     // and we don't filter by any msg_stats column here).
     const [totalResult] = await ctx.db
       .select({ count: sql<number>`count(*)::int` })
       .from(conversations)
-      .where(eq(conversations.chatbotId, input.chatbotId));
+      .where(where);
 
     const totalCount = totalResult?.count ?? 0;
 
@@ -66,10 +78,13 @@ export const getConversationsListProcedure = protectedProcedure
         firstUserMessage: msgStats.firstUserMessage,
         firstMessageAt: msgStats.firstMessageAt,
         lastMessageAt: msgStats.lastMessageAt,
+        ratingsUp: ratingStats.ratingsUp,
+        ratingsDown: ratingStats.ratingsDown,
       })
       .from(conversations)
       .leftJoin(msgStats, eq(conversations.id, msgStats.conversationId))
-      .where(eq(conversations.chatbotId, input.chatbotId))
+      .leftJoin(ratingStats, eq(conversations.id, ratingStats.conversationId))
+      .where(where)
       .orderBy(
         primaryOrder,
         desc(conversations.createdAt),
@@ -88,6 +103,8 @@ export const getConversationsListProcedure = protectedProcedure
         preview: formatPreview(r.firstUserMessage),
         firstMessageAt: r.firstMessageAt,
         lastMessageAt: r.lastMessageAt,
+        ratingsUp: r.ratingsUp ?? 0,
+        ratingsDown: r.ratingsDown ?? 0,
       })),
       totalCount,
     };
@@ -155,11 +172,21 @@ export const getConversationMessagesProcedure = protectedProcedure
       .orderBy(asc(studyToolResponses.createdAt))
       .limit(500);
 
+    // At most one per assistant message, so loaded in full.
+    const ratings = await ctx.db
+      .select({
+        messageId: messageRatings.messageId,
+        rating: messageRatings.rating,
+      })
+      .from(messageRatings)
+      .where(eq(messageRatings.conversationId, input.conversationId));
+
     return {
       messages: conversationMessages,
       conversation: row.conversation,
       totalCount: totalResult?.count ?? 0,
       studyResponses,
+      ratings,
     };
   });
 
@@ -170,6 +197,8 @@ export const searchConversationsProcedure = protectedProcedure
       query: z.string().min(1).max(200),
       limit: z.number().min(1).max(50).default(20),
       offset: z.number().min(0).default(0),
+      // Only chats where a student gave at least one thumbs down.
+      hasThumbsDown: z.boolean().default(false),
     }),
   )
   .query(async ({ ctx, input }) => {
@@ -203,6 +232,7 @@ export const searchConversationsProcedure = protectedProcedure
         and(
           eq(conversations.chatbotId, input.chatbotId),
           ilike(messages.content, `%${escapeLikePattern(input.query)}%`),
+          input.hasThumbsDown ? conversationHasThumbsDown(ctx.db) : undefined,
         ),
       )
       .limit(SEARCH_MATCH_CAP);
@@ -215,6 +245,7 @@ export const searchConversationsProcedure = protectedProcedure
     const totalCount = matchingIds.length;
 
     const msgStats = buildMessageStatsSubquery(ctx.db, input.chatbotId);
+    const ratingStats = buildRatingStatsSubquery(ctx.db, input.chatbotId);
 
     const results = await ctx.db
       .select({
@@ -226,9 +257,12 @@ export const searchConversationsProcedure = protectedProcedure
         firstUserMessage: msgStats.firstUserMessage,
         firstMessageAt: msgStats.firstMessageAt,
         lastMessageAt: msgStats.lastMessageAt,
+        ratingsUp: ratingStats.ratingsUp,
+        ratingsDown: ratingStats.ratingsDown,
       })
       .from(conversations)
       .leftJoin(msgStats, eq(conversations.id, msgStats.conversationId))
+      .leftJoin(ratingStats, eq(conversations.id, ratingStats.conversationId))
       .where(
         and(
           eq(conversations.chatbotId, input.chatbotId),
@@ -249,6 +283,8 @@ export const searchConversationsProcedure = protectedProcedure
         preview: formatPreview(r.firstUserMessage),
         firstMessageAt: r.firstMessageAt,
         lastMessageAt: r.lastMessageAt,
+        ratingsUp: r.ratingsUp ?? 0,
+        ratingsDown: r.ratingsDown ?? 0,
       })),
       totalCount,
     };

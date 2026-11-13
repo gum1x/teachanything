@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   conversations,
   messages,
+  messageRatings,
   studyToolResponses,
 } from "@teachanything/db/schema";
 import { eq, and, asc, inArray } from "drizzle-orm";
@@ -14,6 +15,7 @@ import {
 } from "@/server/study/collect-export";
 import { assertOwnedChatbot } from "@/server/queries/chatbot";
 import { checkRateLimit, downloadRateLimit } from "@/server/rate-limit";
+import type { MessageRating } from "@/lib/message-rating";
 
 /**
  * Export student chat records for a chatbot the caller owns. Returns the
@@ -99,6 +101,7 @@ export const exportConversationsProcedure = protectedProcedure
     // mirror what the professor sees in the conversation viewer.
     const messageRows = await ctx.db
       .select({
+        id: messages.id,
         conversationId: messages.conversationId,
         role: messages.role,
         content: messages.content,
@@ -133,6 +136,18 @@ export const exportConversationsProcedure = protectedProcedure
     // the client renderer for each tool interprets its own payload shape.
     const responsesByKey = groupStudyResponses(responseRows);
 
+    // Student thumbs up / down, at most one per assistant message.
+    const ratingRows = await ctx.db
+      .select({
+        messageId: messageRatings.messageId,
+        rating: messageRatings.rating,
+      })
+      .from(messageRatings)
+      .where(inArray(messageRatings.conversationId, conversationIds));
+    const ratingByMessageId = new Map(
+      ratingRows.map((r) => [r.messageId, r.rating]),
+    );
+
     const messagesByConversation = new Map<
       string,
       Array<{
@@ -141,6 +156,7 @@ export const exportConversationsProcedure = protectedProcedure
         createdAt: Date;
         sources: Array<{ fileName: string; similarity: number }>;
         studyTools: CollectedStudyTool[];
+        rating: MessageRating | null;
       }>
     >();
 
@@ -162,6 +178,7 @@ export const exportConversationsProcedure = protectedProcedure
                 responsesByKey,
               )
             : [],
+        rating: ratingByMessageId.get(row.id) ?? null,
       });
       messagesByConversation.set(row.conversationId, list);
     }

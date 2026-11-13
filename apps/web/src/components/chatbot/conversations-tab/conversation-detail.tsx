@@ -60,6 +60,11 @@ export function ConversationDetail({
     return map;
   }, [data?.studyResponses]);
 
+  const ratingByMessageId = useMemo(
+    () => new Map((data?.ratings ?? []).map((r) => [r.messageId, r.rating])),
+    [data?.ratings],
+  );
+
   return (
     <Card className={PANEL_SHELL} style={PANEL_STYLE}>
       <CardHeader className="shrink-0">
@@ -135,6 +140,7 @@ export function ConversationDetail({
                     showSources
                     readOnly
                     studyAttempts={studyAttempts}
+                    rating={ratingByMessageId.get(msg.id)}
                   />
                 ))}
             </div>

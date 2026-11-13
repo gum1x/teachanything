@@ -1,7 +1,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Clock, MessageSquare, Trash2 } from "lucide-react";
+import {
+  Clock,
+  MessageSquare,
+  ThumbsDown,
+  ThumbsUp,
+  Trash2,
+} from "lucide-react";
 import { formatDuration, formatTimestamp } from "@/lib/conversation-format";
 import type { ConversationRow } from "./constants";
 
@@ -50,6 +56,27 @@ export function ConversationListItem({
               )}
             </span>
             <span>{formatTimestamp(conversation.createdAt)}</span>
+            {conversation.ratingsUp + conversation.ratingsDown > 0 && (
+              <span
+                className="flex items-center gap-2"
+                aria-label={`Student ratings: ${conversation.ratingsUp} up, ${conversation.ratingsDown} down`}
+              >
+                <span className="flex items-center gap-1">
+                  <ThumbsUp className="h-3 w-3" aria-hidden="true" />
+                  {conversation.ratingsUp}
+                </span>
+                <span
+                  className={
+                    conversation.ratingsDown > 0
+                      ? "flex items-center gap-1 text-amber-600 dark:text-amber-500"
+                      : "flex items-center gap-1"
+                  }
+                >
+                  <ThumbsDown className="h-3 w-3" aria-hidden="true" />
+                  {conversation.ratingsDown}
+                </span>
+              </span>
+            )}
           </div>
         </div>
       </button>

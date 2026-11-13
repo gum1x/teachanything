@@ -148,6 +148,13 @@
       "when": 1790130857978,
       "tag": "0020_user_files_user_id_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794416016520,
+      "tag": "0021_message_ratings",
+      "breakpoints": true
     }
   ]
 }

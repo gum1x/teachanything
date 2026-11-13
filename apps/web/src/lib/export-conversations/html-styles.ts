@@ -128,6 +128,7 @@ export const EXPORT_HTML_STYLES = `
   .sources-label { display: inline-flex; align-items: center; gap: .35rem; font-family: var(--sans); font-size: .74rem; font-weight: 500; color: var(--muted); }
   .sources-label svg { width: .9rem; height: .9rem; }
   .badge { font-family: var(--sans); font-size: .72rem; color: var(--muted); border: 1px solid var(--rule); border-radius: .4rem; padding: .1rem .45rem; }
+  .rating { font-family: var(--sans); font-size: .74rem; font-weight: 500; color: var(--muted); }
 
   /* Study tools — a graded-insert treatment */
   .study-tool { border: 1px solid var(--rule-strong); border-radius: .5rem; padding: 1rem 1.1rem; margin-top: .7rem; background: color-mix(in srgb, var(--accent) 3%, var(--panel)); box-shadow: var(--shadow); }

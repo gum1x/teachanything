@@ -3,6 +3,7 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
 } from "ai";
+import { randomUUID } from "crypto";
 import { nanoid } from "nanoid";
 import {
   createOpenRouterClient,
@@ -224,6 +225,10 @@ export async function streamChat(params: {
   const startTime = Date.now();
   const preStreamMs = startTime - turnStart;
 
+  // Sent to the browser as the message id and used as the row id, so a
+  // student's rating can name the message.
+  const assistantMessageId = randomUUID();
+
   // Metadata computed during `execute`, read in `onFinish` for persistence.
   const turnState: TurnState = {
     finalSources: ragResult.sources,
@@ -240,6 +245,7 @@ export async function streamChat(params: {
 
   const stream = createUIMessageStream<StudyUIMessage>({
     originalMessages: uiMessages,
+    generateId: () => assistantMessageId,
     onError: onStreamError,
     execute: ({ writer }) =>
       executeTurn({
@@ -268,6 +274,7 @@ export async function streamChat(params: {
     onFinish: ({ responseMessage }) =>
       persistTurn({
         responseMessage,
+        assistantMessageId,
         database,
         conversationId,
         chatbotId: chatbot.id,
