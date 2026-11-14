@@ -1,26 +1,17 @@
 import { protectedProcedure } from "@/server/trpc";
 import { z } from "zod";
-import {
-  conversations,
-  messages,
-  chatbots,
-  messageRatings,
-  studyToolResponses,
-} from "@teachanything/db/schema";
+import { conversations, messages } from "@teachanything/db/schema";
 import type { SQL } from "drizzle-orm";
-import { eq, and, sql, desc, asc, inArray, ilike } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, ilike } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { escapeLikePattern, formatPreview } from "@/server/utils";
+import { escapeLikePattern } from "@/server/utils";
 import { assertOwnedChatbot } from "@/server/queries/chatbot";
 import {
   checkRateLimit,
   conversationSearchRateLimit,
 } from "@/server/rate-limit";
-import {
-  buildMessageStatsSubquery,
-  buildRatingStatsSubquery,
-  conversationHasThumbsDown,
-} from "../helpers";
+import { conversationHasThumbsDown } from "../helpers";
+import { selectConversationRows, toConversationRow } from "./conversation-rows";
 
 export const getConversationsListProcedure = protectedProcedure
   .input(
@@ -38,8 +29,7 @@ export const getConversationsListProcedure = protectedProcedure
   .query(async ({ ctx, input }) => {
     await assertOwnedChatbot(ctx, input.chatbotId);
 
-    const msgStats = buildMessageStatsSubquery(ctx.db, input.chatbotId);
-    const ratingStats = buildRatingStatsSubquery(ctx.db, input.chatbotId);
+    const { query, msgStats } = selectConversationRows(ctx.db, input.chatbotId);
     const where = and(
       eq(conversations.chatbotId, input.chatbotId),
       input.hasThumbsDown ? conversationHasThumbsDown(ctx.db) : undefined,
@@ -68,22 +58,7 @@ export const getConversationsListProcedure = protectedProcedure
         primaryOrder = desc(conversations.createdAt);
     }
 
-    const results = await ctx.db
-      .select({
-        id: conversations.id,
-        sessionId: conversations.sessionId,
-        metadata: conversations.metadata,
-        createdAt: conversations.createdAt,
-        messageCount: msgStats.messageCount,
-        firstUserMessage: msgStats.firstUserMessage,
-        firstMessageAt: msgStats.firstMessageAt,
-        lastMessageAt: msgStats.lastMessageAt,
-        ratingsUp: ratingStats.ratingsUp,
-        ratingsDown: ratingStats.ratingsDown,
-      })
-      .from(conversations)
-      .leftJoin(msgStats, eq(conversations.id, msgStats.conversationId))
-      .leftJoin(ratingStats, eq(conversations.id, ratingStats.conversationId))
+    const results = await query
       .where(where)
       .orderBy(
         primaryOrder,
@@ -93,101 +68,7 @@ export const getConversationsListProcedure = protectedProcedure
       .limit(input.limit)
       .offset(input.offset);
 
-    return {
-      conversations: results.map((r) => ({
-        id: r.id,
-        sessionId: r.sessionId,
-        metadata: r.metadata,
-        createdAt: r.createdAt,
-        messageCount: r.messageCount ?? 0,
-        preview: formatPreview(r.firstUserMessage),
-        firstMessageAt: r.firstMessageAt,
-        lastMessageAt: r.lastMessageAt,
-        ratingsUp: r.ratingsUp ?? 0,
-        ratingsDown: r.ratingsDown ?? 0,
-      })),
-      totalCount,
-    };
-  });
-
-export const getConversationMessagesProcedure = protectedProcedure
-  .input(
-    z.object({
-      chatbotId: z.string().uuid(),
-      conversationId: z.string().uuid(),
-      limit: z.number().min(1).max(200).default(100),
-      offset: z.number().min(0).default(0),
-    }),
-  )
-  .query(async ({ ctx, input }) => {
-    // Single JOIN verifies chatbot ownership AND conversation binding
-    // in one round-trip.
-    const [row] = await ctx.db
-      .select({ conversation: conversations })
-      .from(conversations)
-      .innerJoin(chatbots, eq(chatbots.id, conversations.chatbotId))
-      .where(
-        and(
-          eq(conversations.id, input.conversationId),
-          eq(conversations.chatbotId, input.chatbotId),
-          eq(chatbots.userId, ctx.session.user.id),
-        ),
-      )
-      .limit(1);
-
-    if (!row) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Conversation not found",
-      });
-    }
-
-    const [totalResult] = await ctx.db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(messages)
-      .where(eq(messages.conversationId, input.conversationId));
-
-    const conversationMessages = await ctx.db
-      .select()
-      .from(messages)
-      .where(eq(messages.conversationId, input.conversationId))
-      .orderBy(asc(messages.createdAt))
-      .limit(input.limit)
-      .offset(input.offset);
-
-    // Student study-tool attempts for this conversation (quiz answers, etc.),
-    // in chronological order so the client can label them Attempt 1, 2, ...
-    // per toolCallId. Loaded in full (not tied to the message page) so a quiz
-    // on any message page shows all its attempts; responses per conversation
-    // are small, but capped defensively against a pathological conversation.
-    const studyResponses = await ctx.db
-      .select({
-        toolCallId: studyToolResponses.toolCallId,
-        toolName: studyToolResponses.toolName,
-        attempt: studyToolResponses.attempt,
-        response: studyToolResponses.response,
-      })
-      .from(studyToolResponses)
-      .where(eq(studyToolResponses.conversationId, input.conversationId))
-      .orderBy(asc(studyToolResponses.createdAt))
-      .limit(500);
-
-    // At most one per assistant message, so loaded in full.
-    const ratings = await ctx.db
-      .select({
-        messageId: messageRatings.messageId,
-        rating: messageRatings.rating,
-      })
-      .from(messageRatings)
-      .where(eq(messageRatings.conversationId, input.conversationId));
-
-    return {
-      messages: conversationMessages,
-      conversation: row.conversation,
-      totalCount: totalResult?.count ?? 0,
-      studyResponses,
-      ratings,
-    };
+    return { conversations: results.map(toConversationRow), totalCount };
   });
 
 export const searchConversationsProcedure = protectedProcedure
@@ -244,26 +125,8 @@ export const searchConversationsProcedure = protectedProcedure
     const matchingIds = matchingRows.map((r) => r.id);
     const totalCount = matchingIds.length;
 
-    const msgStats = buildMessageStatsSubquery(ctx.db, input.chatbotId);
-    const ratingStats = buildRatingStatsSubquery(ctx.db, input.chatbotId);
-
-    const results = await ctx.db
-      .select({
-        id: conversations.id,
-        sessionId: conversations.sessionId,
-        metadata: conversations.metadata,
-        createdAt: conversations.createdAt,
-        messageCount: msgStats.messageCount,
-        firstUserMessage: msgStats.firstUserMessage,
-        firstMessageAt: msgStats.firstMessageAt,
-        lastMessageAt: msgStats.lastMessageAt,
-        ratingsUp: ratingStats.ratingsUp,
-        ratingsDown: ratingStats.ratingsDown,
-      })
-      .from(conversations)
-      .leftJoin(msgStats, eq(conversations.id, msgStats.conversationId))
-      .leftJoin(ratingStats, eq(conversations.id, ratingStats.conversationId))
-      .where(
+    const results = await selectConversationRows(ctx.db, input.chatbotId)
+      .query.where(
         and(
           eq(conversations.chatbotId, input.chatbotId),
           inArray(conversations.id, matchingIds),
@@ -273,21 +136,7 @@ export const searchConversationsProcedure = protectedProcedure
       .limit(input.limit)
       .offset(input.offset);
 
-    return {
-      conversations: results.map((r) => ({
-        id: r.id,
-        sessionId: r.sessionId,
-        metadata: r.metadata,
-        createdAt: r.createdAt,
-        messageCount: r.messageCount ?? 0,
-        preview: formatPreview(r.firstUserMessage),
-        firstMessageAt: r.firstMessageAt,
-        lastMessageAt: r.lastMessageAt,
-        ratingsUp: r.ratingsUp ?? 0,
-        ratingsDown: r.ratingsDown ?? 0,
-      })),
-      totalCount,
-    };
+    return { conversations: results.map(toConversationRow), totalCount };
   });
 
 /**

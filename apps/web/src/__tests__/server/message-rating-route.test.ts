@@ -9,14 +9,21 @@ import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 const mockLimit = jest.fn<() => Promise<{ success: boolean }>>();
+const mockIpLimit = jest.fn<() => Promise<{ success: boolean }>>();
+/** The identifier each limiter was called with, by limiter. */
+let limitKeys: { session?: string; ip?: string };
 
 type Row = Record<string, unknown>;
 type Write =
   | { op: "upsert"; table: unknown; values: Row; target: unknown; set: Row }
   | { op: "delete"; table: unknown };
 
-/** What each lookup returns. The fake does not evaluate `where`; it records it. */
-let found: { chatbot?: Row; conversation?: Row; message?: Row };
+/**
+ * What each lookup returns. The fake does not evaluate `where`; it records it.
+ * `owned` is the one message-joined-to-conversation lookup that proves the
+ * message is the caller's.
+ */
+let found: { chatbot?: Row; owned?: Row };
 let writes: Write[];
 /** Every `where` that ran, as SQL text and bound values. */
 let filters: Array<{ table: unknown; sql: string; params: unknown[] }>;
@@ -32,21 +39,33 @@ function rowsFor(table: unknown): Row[] {
   const row =
     table === schema.chatbots
       ? found.chatbot
-      : table === schema.conversations
-        ? found.conversation
-        : table === schema.messages
-          ? found.message
-          : undefined;
+      : table === schema.messages
+        ? found.owned
+        : undefined;
   return row ? [row] : [];
 }
+
+/** A `where` that records its condition and returns the table's rows. */
+function filtered(table: unknown) {
+  return {
+    where: (condition: SQL) => {
+      recordFilter(table, condition);
+      return { limit: async () => rowsFor(table) };
+    },
+  };
+}
+
+/** Joins the fake saw, as [from, joined, on-clause SQL]. */
+let joins: Array<{ from: unknown; joined: unknown; on: string }>;
 
 jest.unstable_mockModule("@teachanything/db", () => ({
   db: {
     select: () => ({
       from: (table: unknown) => ({
-        where: (condition: SQL) => {
-          recordFilter(table, condition);
-          return { limit: async () => rowsFor(table) };
+        ...filtered(table),
+        innerJoin: (joined: unknown, on: SQL) => {
+          joins.push({ from: table, joined, on: dialect.sqlToQuery(on).sql });
+          return filtered(table);
         },
       }),
     }),
@@ -68,9 +87,15 @@ jest.unstable_mockModule("@teachanything/db", () => ({
 
 // The real module pulls in @upstash/redis.
 jest.unstable_mockModule("@/server/rate-limit", () => ({
-  checkRateLimit: (limiter: { limit: () => Promise<{ success: boolean }> }) =>
-    limiter.limit(),
-  publicMessageRatingRateLimit: { limit: mockLimit },
+  checkRateLimit: (
+    limiter: { name: "session" | "ip"; limit: () => Promise<unknown> },
+    identifier: string,
+  ) => {
+    limitKeys[limiter.name] = identifier;
+    return limiter.limit();
+  },
+  publicMessageRatingRateLimit: { name: "session", limit: mockLimit },
+  publicMessageRatingIpRateLimit: { name: "ip", limit: mockIpLimit },
 }));
 
 jest.unstable_mockModule("@/lib/logger", () => ({
@@ -107,11 +132,13 @@ const validBody = {
 beforeEach(() => {
   writes = [];
   filters = [];
+  joins = [];
+  limitKeys = {};
   mockLimit.mockResolvedValue({ success: true });
+  mockIpLimit.mockResolvedValue({ success: true });
   found = {
     chatbot: { id: CHATBOT_ID },
-    conversation: { id: CONVERSATION_ID },
-    message: { conversationId: CONVERSATION_ID, role: "assistant" },
+    owned: { conversationId: CONVERSATION_ID },
   };
 });
 
@@ -156,11 +183,10 @@ describe("POST /api/message-rating/shared: saving", () => {
 });
 
 describe("POST /api/message-rating/shared: ownership", () => {
-  it("refuses a message that belongs to another conversation", async () => {
-    found.message = {
-      conversationId: "c0ffee00-0000-4000-8000-000000000000",
-      role: "assistant",
-    };
+  // Which messages count as the caller's is decided in SQL; the scoping tests
+  // below pin that query. Here: what the route does when it finds none.
+  it("refuses a message the lookup does not find as the caller's", async () => {
+    found.owned = undefined;
 
     const res = await post(validBody);
 
@@ -168,38 +194,8 @@ describe("POST /api/message-rating/shared: ownership", () => {
     expect(writes).toEqual([]);
   });
 
-  it("refuses a user message", async () => {
-    found.message = { conversationId: CONVERSATION_ID, role: "user" };
-
-    const res = await post(validBody);
-
-    expect(res.status).toBe(404);
-    expect(writes).toEqual([]);
-  });
-
-  it("refuses when the session has no conversation on this chatbot", async () => {
-    found.conversation = undefined;
-
-    const res = await post(validBody);
-
-    expect(res.status).toBe(404);
-    expect(writes).toEqual([]);
-  });
-
-  it("refuses a message id that does not exist", async () => {
-    found.message = undefined;
-
-    const res = await post(validBody);
-
-    expect(res.status).toBe(404);
-    expect(writes).toEqual([]);
-  });
-
-  it("refuses to clear a rating on a message outside the conversation", async () => {
-    found.message = {
-      conversationId: "c0ffee00-0000-4000-8000-000000000000",
-      role: "assistant",
-    };
+  it("refuses to clear a rating on a message that is not the caller's", async () => {
+    found.owned = undefined;
 
     const res = await post({ ...validBody, rating: null });
 
@@ -232,21 +228,19 @@ describe("POST /api/message-rating/shared: what each query is scoped to", () => 
     });
   });
 
-  it("finds the conversation by that chatbot and the caller's session", async () => {
+  it("finds the message only as an assistant turn in the caller's conversation on this chatbot", async () => {
     await post(validBody);
 
-    expect(filterOn(schema.conversations)).toEqual({
-      sql: '("conversations"."chatbot_id" = $1 and "conversations"."session_id" = $2)',
-      params: [CHATBOT_ID, SESSION_ID],
-    });
-  });
-
-  it("finds the message by its id", async () => {
-    await post(validBody);
-
+    expect(joins).toEqual([
+      {
+        from: schema.messages,
+        joined: schema.conversations,
+        on: '"messages"."conversation_id" = "conversations"."id"',
+      },
+    ]);
     expect(filterOn(schema.messages)).toEqual({
-      sql: '"messages"."id" = $1',
-      params: [MESSAGE_ID],
+      sql: '("messages"."id" = $1 and "messages"."role" = $2 and "conversations"."chatbot_id" = $3 and "conversations"."session_id" = $4)',
+      params: [MESSAGE_ID, "assistant", CHATBOT_ID, SESSION_ID],
     });
   });
 
@@ -280,12 +274,28 @@ describe("POST /api/message-rating/shared: validation", () => {
     expect(writes).toEqual([]);
   });
 
-  it("returns 429 once the caller is rate limited", async () => {
+  it("returns 429 once the session is rate limited", async () => {
     mockLimit.mockResolvedValue({ success: false });
 
     const res = await post(validBody);
 
     expect(res.status).toBe(429);
     expect(writes).toEqual([]);
+  });
+
+  it("returns 429 once the IP is rate limited", async () => {
+    mockIpLimit.mockResolvedValue({ success: false });
+
+    const res = await post(validBody);
+
+    expect(res.status).toBe(429);
+    expect(writes).toEqual([]);
+  });
+
+  it("limits per session, so students behind one IP do not share a bucket", async () => {
+    await post(validBody);
+
+    expect(limitKeys.session).toBe(`share-token-1:${SESSION_ID}`);
+    expect(limitKeys.ip).toMatch(/^share-token-1:/);
   });
 });

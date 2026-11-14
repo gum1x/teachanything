@@ -116,9 +116,6 @@ export function ConversationsTab({ chatbotId }: ConversationsTabProps) {
 
         <div ref={setResultsRef} className="flex flex-1 min-h-0 flex-col">
           <ConversationsResults
-            // Remounts on toggle, so chats selected under the other filter
-            // cannot be deleted or exported while hidden.
-            key={hasThumbsDown ? "thumbs-down" : "all"}
             chatbotId={chatbotId}
             search={debouncedSearch}
             sortBy={sortBy}

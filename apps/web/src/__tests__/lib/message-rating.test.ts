@@ -1,5 +1,5 @@
-import { describe, it, expect } from "@jest/globals";
-import { isRatableMessage } from "@/lib/message-rating";
+import { jest, describe, it, expect, afterEach } from "@jest/globals";
+import { isRatableMessage, postMessageRating } from "@/lib/message-rating";
 import type { StudyUIMessage } from "@/server/chat/study-tools";
 
 const quiz = {
@@ -96,5 +96,49 @@ describe("isRatableMessage", () => {
         metadata: FINISHED,
       } as StudyUIMessage),
     ).toBe(false);
+  });
+});
+
+describe("postMessageRating", () => {
+  const input = {
+    shareToken: "t",
+    sessionId: "s",
+    messageId: "m",
+    rating: 1 as const,
+  };
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+  function respond(status: number) {
+    global.fetch = jest
+      .fn<typeof fetch>()
+      // jsdom has no Response; postMessageRating reads only these two.
+      .mockResolvedValue({
+        ok: status >= 200 && status < 300,
+        status,
+      } as Response);
+  }
+
+  it("reports a saved rating", async () => {
+    respond(204);
+    await expect(postMessageRating(input)).resolves.toBe("saved");
+  });
+
+  it("reports a response the server has no record of as unavailable", async () => {
+    respond(404);
+    await expect(postMessageRating(input)).resolves.toBe("unavailable");
+  });
+
+  it.each([429, 500])("reports a %i as worth retrying", async (status) => {
+    respond(status);
+    await expect(postMessageRating(input)).resolves.toBe("failed");
+  });
+
+  it("reports a network error as worth retrying", async () => {
+    global.fetch = jest
+      .fn<typeof fetch>()
+      .mockRejectedValue(new TypeError("offline"));
+    await expect(postMessageRating(input)).resolves.toBe("failed");
   });
 });

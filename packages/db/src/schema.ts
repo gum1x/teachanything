@@ -12,6 +12,7 @@ import {
   index,
   unique,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -430,7 +431,12 @@ export const studyToolResponses = pgTable(
 );
 
 // Student thumbs up / down on an assistant response, one row per message.
-// `chatbotId` is denormalized so analytics does not join through `messages`.
+// `conversationId` and `chatbotId` are copied from the message so analytics
+// does not join through `messages`. No constraint ties them to the message's
+// own conversation: `recordMessageRating` (apps/web/src/server/ratings) is the
+// only writer and sets both from the message it verified. A new writer must
+// do the same.
+// `updatedAt` is when the current rating was given, so analytics buckets by it.
 export const messageRatings = pgTable(
   "message_ratings",
   {
@@ -450,12 +456,14 @@ export const messageRatings = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    index("message_ratings_chatbot_id_created_at_idx").on(
+    index("message_ratings_chatbot_id_updated_at_idx").on(
       table.chatbotId,
-      table.createdAt,
+      table.updatedAt,
     ),
     // Per-conversation reads, and the cascade when a conversation is deleted.
     index("message_ratings_conversation_id_idx").on(table.conversationId),
+    // Analytics counts only 1 and -1; any other value would vanish from both.
+    check("message_ratings_rating_check", sql`${table.rating} IN (1, -1)`),
   ],
 );
 

@@ -155,6 +155,13 @@
       "when": 1794416016520,
       "tag": "0021_message_ratings",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794617272927,
+      "tag": "0022_message_ratings_check_and_updated_at_idx",
+      "breakpoints": true
     }
   ]
 }

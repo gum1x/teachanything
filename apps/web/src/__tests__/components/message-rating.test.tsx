@@ -4,7 +4,7 @@ import { useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { StudyUIMessage } from "@/server/chat/study-tools";
-import type { MessageRating } from "@/lib/message-rating";
+import type { MessageRating, RatingSaveResult } from "@/lib/message-rating";
 
 jest.unstable_mockModule("sonner", () => ({
   toast: { success: jest.fn(), error: jest.fn() },
@@ -16,7 +16,7 @@ const { toast } = await import("sonner");
 type OnRate = (
   messageId: string,
   rating: MessageRating | null,
-) => Promise<boolean>;
+) => Promise<RatingSaveResult>;
 
 /** A finished assistant response: the closing chunk sets `responseTime`. */
 const finished: StudyUIMessage = {
@@ -29,8 +29,8 @@ const finished: StudyUIMessage = {
 const up = () => screen.getByRole("button", { name: "Thumbs up" });
 const down = () => screen.getByRole("button", { name: "Thumbs down" });
 
-function savingRate(saved = true) {
-  return jest.fn<OnRate>().mockResolvedValue(saved);
+function savingRate(result: RatingSaveResult = "saved") {
+  return jest.fn<OnRate>().mockResolvedValue(result);
 }
 
 beforeEach(() => {
@@ -74,13 +74,23 @@ describe("where the rating buttons appear", () => {
     expect(screen.queryByRole("button", { name: "Thumbs up" })).toBeNull();
   });
 
-  it("tells the student the rating is anonymous on hover", async () => {
+  it("says what a thumb does on hover", async () => {
     render(<ChatMessage message={finished} onRate={savingRate()} />);
 
     await userEvent.hover(up());
 
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Helpful");
+  });
+
+  it("offers to remove the rating when hovering the selected thumb", async () => {
+    render(
+      <ChatMessage message={finished} rating={-1} onRate={savingRate()} />,
+    );
+
+    await userEvent.hover(down());
+
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Your ratings and feedback are anonymous.",
+      "Remove your rating",
     );
   });
 
@@ -97,9 +107,9 @@ function StudentChat({ save }: { save: OnRate }) {
   const [rating, setRating] = useState<MessageRating | undefined>();
   const [isOpen, setIsOpen] = useState(true);
   const onRate: OnRate = async (messageId, next) => {
-    const saved = await save(messageId, next);
-    if (saved) setRating(next ?? undefined);
-    return saved;
+    const result = await save(messageId, next);
+    if (result === "saved") setRating(next ?? undefined);
+    return result;
   };
   return (
     <>
@@ -147,19 +157,30 @@ describe("rating a response", () => {
   });
 
   it("undoes the choice and says so when the save fails", async () => {
-    render(<StudentChat save={savingRate(false)} />);
+    render(<StudentChat save={savingRate("failed")} />);
 
     await userEvent.click(up());
 
     expect(up()).toHaveAttribute("aria-pressed", "false");
-    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(
+      "Couldn't save your rating. Please try again.",
+    );
+  });
+
+  it("says the answer can't be rated when the server has no such response", async () => {
+    render(<StudentChat save={savingRate("unavailable")} />);
+
+    await userEvent.click(up());
+
+    expect(up()).toHaveAttribute("aria-pressed", "false");
+    expect(toast.error).toHaveBeenCalledWith("This answer can't be rated.");
   });
 
   it("goes back to the saved rating when a switch fails to save", async () => {
     const save = jest
       .fn<OnRate>()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
+      .mockResolvedValueOnce("saved")
+      .mockResolvedValueOnce("failed");
     render(<StudentChat save={save} />);
 
     await userEvent.click(up());
@@ -170,9 +191,9 @@ describe("rating a response", () => {
   });
 
   it("shows the choice at once and takes one click at a time while saving", async () => {
-    let finishSave!: (saved: boolean) => void;
+    let finishSave!: (result: RatingSaveResult) => void;
     const save = jest.fn<OnRate>().mockReturnValue(
-      new Promise<boolean>((resolve) => {
+      new Promise<RatingSaveResult>((resolve) => {
         finishSave = resolve;
       }),
     );
@@ -184,7 +205,7 @@ describe("rating a response", () => {
     await userEvent.click(down());
     expect(save).toHaveBeenCalledTimes(1);
 
-    finishSave(true);
+    finishSave("saved");
     await waitFor(() => expect(down()).toBeEnabled());
     expect(up()).toHaveAttribute("aria-pressed", "true");
   });

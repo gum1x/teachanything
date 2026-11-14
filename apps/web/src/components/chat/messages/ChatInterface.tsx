@@ -4,7 +4,7 @@ import { ChatMessage, isVisiblePart } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import type { StudyUIMessage } from "@/server/chat/study-tools";
 import type { StudyResponsePayload } from "@/lib/submit-study-response";
-import type { MessageRating } from "@/lib/message-rating";
+import type { MessageRating, RatingSaveResult } from "@/lib/message-rating";
 import {
   ChatContainerRoot,
   ChatContainerContent,
@@ -55,7 +55,9 @@ interface ChatInterfaceProps {
   onRateMessage?: (
     messageId: string,
     rating: MessageRating | null,
-  ) => Promise<boolean>;
+  ) => Promise<RatingSaveResult>;
+  /** Responses the server refused to rate (never saved); their thumbs hide. */
+  unratableMessageIds?: Record<string, true>;
 }
 
 export function ChatInterface({
@@ -82,6 +84,7 @@ export function ChatInterface({
   studyAttempts,
   ratings,
   onRateMessage,
+  unratableMessageIds,
 }: ChatInterfaceProps) {
   const isStreaming = status === "submitted" || status === "streaming";
   const lastMessage = messages[messages.length - 1];
@@ -183,9 +186,11 @@ export function ChatInterface({
                     onStudyAttempt={onStudyAttempt}
                     studyAttempts={studyAttempts}
                     rating={ratings?.[msg.id]}
-                    // A response still being written cannot be rated yet.
+                    // A response still being written cannot be rated yet,
+                    // nor one the server never saved.
                     onRate={
-                      isStreaming && msg === lastMessage
+                      (isStreaming && msg === lastMessage) ||
+                      unratableMessageIds?.[msg.id]
                         ? undefined
                         : onRateMessage
                     }

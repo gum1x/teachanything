@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
       <main className="max-w-3xl mx-auto px-6 py-12">
         <article className={s.prose}>
           <h1>Privacy Policy</h1>
-          <p data-legal-meta>Last updated November 11, 2026</p>
+          <p data-legal-meta>Last updated November 14, 2026</p>
 
           <p>
             This Privacy Notice for <BrandName /> (&ldquo;we,&rdquo;
@@ -273,10 +273,12 @@ export default function PrivacyPolicyPage() {
             unless you have appropriate authorization to do so.
           </p>
           <p>
-            <strong>Ratings and Feedback.</strong> Feedback and performance
-            ratings submitted by students regarding the AI chatbot are collected
-            anonymously to improve educational quality. Do not include sensitive
-            personal information in your written feedback.
+            <strong>Answer Ratings.</strong> Students can rate an AI chatbot
+            answer thumbs up or thumbs down. A rating is stored with the
+            conversation it belongs to and is shown to the instructor who owns
+            the chatbot alongside that conversation, including in chat record
+            exports. Ratings are not linked to a name or account, but anything a
+            student writes in the conversation is visible with them.
           </p>
           <p>
             All personal information that you provide to us must be true,

@@ -23,21 +23,29 @@ export function isRatableMessage(message: StudyUIMessage): boolean {
   return content.trim().length > 0 || hasPersistableStudyPart(parts);
 }
 
-/** Save a rating in a shared chat (`null` clears it). Resolves to whether it was saved. */
+/**
+ * How a save ended. `unavailable` means the server has no such response for
+ * this session (it was never saved, or sharing was turned off), so retrying
+ * cannot help; `failed` is anything worth retrying.
+ */
+export type RatingSaveResult = "saved" | "unavailable" | "failed";
+
+/** Save a rating in a shared chat (`null` clears it). */
 export async function postMessageRating(input: {
   shareToken: string;
   sessionId: string;
   messageId: string;
   rating: MessageRating | null;
-}): Promise<boolean> {
+}): Promise<RatingSaveResult> {
   try {
     const res = await fetch("/api/message-rating/shared", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
-    return res.ok;
+    if (res.ok) return "saved";
+    return res.status === 404 ? "unavailable" : "failed";
   } catch {
-    return false;
+    return "failed";
   }
 }

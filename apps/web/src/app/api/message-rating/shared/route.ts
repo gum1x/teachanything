@@ -4,17 +4,19 @@ import { chatbots } from "@teachanything/db/schema";
 import { logError } from "@/lib/logger";
 import {
   checkRateLimit,
+  publicMessageRatingIpRateLimit,
   publicMessageRatingRateLimit,
 } from "@/server/rate-limit";
 import { getTrustedClientIp } from "@/lib/get-client-ip";
 import {
   sharedRatingRequestSchema,
   recordMessageRating,
-} from "@/server/message-rating";
+} from "@/server/ratings/request";
 
 /**
  * Save a student's thumbs up / down from a shared link or embed. No auth;
- * rate limited per (IP, shareToken), fail-open like study-tool responses.
+ * rate limited per (shareToken, session) with a looser per-(IP, shareToken)
+ * backstop, fail-open like study-tool responses.
  */
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -27,11 +29,17 @@ export async function POST(req: Request): Promise<Response> {
     const { shareToken, sessionId, messageId, rating } = parsed.data;
 
     const clientIp = getTrustedClientIp(req.headers);
-    const { success } = await checkRateLimit(
-      publicMessageRatingRateLimit,
-      `${shareToken}:${clientIp}`,
-    );
-    if (!success) {
+    const [perSession, perIp] = await Promise.all([
+      checkRateLimit(
+        publicMessageRatingRateLimit,
+        `${shareToken}:${sessionId}`,
+      ),
+      checkRateLimit(
+        publicMessageRatingIpRateLimit,
+        `${shareToken}:${clientIp}`,
+      ),
+    ]);
+    if (!perSession.success || !perIp.success) {
       return new Response("Too many requests. Please slow down.", {
         status: 429,
       });

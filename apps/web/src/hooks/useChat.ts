@@ -30,6 +30,12 @@ export function useChat(shareToken: string) {
   // Held here, not in the message row: closing the embed unmounts the rows
   // but keeps the session.
   const [ratings, setRatings] = useState<Record<string, MessageRating>>({});
+  // Responses the server refused to rate: it never saved them (a failed write
+  // at the end of the turn), so their thumbs are hidden instead of failing on
+  // every click.
+  const [unratableMessageIds, setUnratableMessageIds] = useState<
+    Record<string, true>
+  >({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -92,13 +98,16 @@ export function useChat(shareToken: string) {
 
   const onRateMessage = useCallback(
     async (messageId: string, rating: MessageRating | null) => {
-      const saved = await postMessageRating({
+      const result = await postMessageRating({
         shareToken,
         sessionId,
         messageId,
         rating,
       });
-      if (saved) {
+      if (result === "unavailable") {
+        setUnratableMessageIds((prev) => ({ ...prev, [messageId]: true }));
+      }
+      if (result === "saved") {
         setRatings((prev) => {
           const next = { ...prev };
           if (rating === null) delete next[messageId];
@@ -106,7 +115,7 @@ export function useChat(shareToken: string) {
           return next;
         });
       }
-      return saved;
+      return result;
     },
     [shareToken, sessionId],
   );
@@ -120,6 +129,7 @@ export function useChat(shareToken: string) {
     setCurrentMessage("");
     setStudyAttempts({});
     setRatings({});
+    setUnratableMessageIds({});
     // Start a fresh server-side conversation (matches the prior behavior). The
     // new id also re-keys useChat, so the transport no longer reloads the
     // old conversation's history on the next send.
@@ -143,5 +153,6 @@ export function useChat(shareToken: string) {
     studyAttempts,
     ratings,
     onRateMessage,
+    unratableMessageIds,
   };
 }

@@ -116,6 +116,10 @@ export function ConversationsResults({
 
   return (
     <ConversationListView
+      // Remounts the list (not the queries) on toggle, so chats selected under
+      // the other filter cannot be deleted or exported while hidden, and the
+      // previous rows stay on screen until the new ones load.
+      key={hasThumbsDown ? "thumbs-down" : "all"}
       chatbotId={chatbotId}
       conversations={data.conversations}
       totalCount={data.totalCount}

@@ -113,10 +113,15 @@ describe("Database Schema", () => {
       );
       expect(names).toEqual(
         expect.arrayContaining([
-          "message_ratings_chatbot_id_created_at_idx",
+          "message_ratings_chatbot_id_updated_at_idx",
           "message_ratings_conversation_id_idx",
         ]),
       );
+    });
+
+    it("limits messageRatings.rating to 1 and -1 in the database", () => {
+      const checks = getTableConfig(messageRatings).checks.map((c) => c.name);
+      expect(checks).toContain("message_ratings_rating_check");
     });
 
     it("defines unique index on chatbotFileAssociations(chatbotId, fileId)", () => {

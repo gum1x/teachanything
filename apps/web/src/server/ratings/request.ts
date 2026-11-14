@@ -31,30 +31,22 @@ export async function recordMessageRating(params: {
 }): Promise<boolean> {
   const { chatbotId, sessionId, messageId, rating, db } = params;
 
-  const [conversation] = await db
-    .select({ id: conversations.id })
-    .from(conversations)
+  // One lookup proves the whole chain: the message is an assistant turn, in a
+  // conversation on this chatbot, owned by the caller's session.
+  const [owned] = await db
+    .select({ conversationId: messages.conversationId })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
     .where(
       and(
+        eq(messages.id, messageId),
+        eq(messages.role, "assistant"),
         eq(conversations.chatbotId, chatbotId),
         eq(conversations.sessionId, sessionId),
       ),
     )
     .limit(1);
-  if (!conversation) return false;
-
-  const [message] = await db
-    .select({ conversationId: messages.conversationId, role: messages.role })
-    .from(messages)
-    .where(eq(messages.id, messageId))
-    .limit(1);
-  if (
-    !message ||
-    message.conversationId !== conversation.id ||
-    message.role !== "assistant"
-  ) {
-    return false;
-  }
+  if (!owned) return false;
 
   if (rating === null) {
     await db
@@ -65,7 +57,12 @@ export async function recordMessageRating(params: {
 
   await db
     .insert(messageRatings)
-    .values({ messageId, conversationId: conversation.id, chatbotId, rating })
+    .values({
+      messageId,
+      conversationId: owned.conversationId,
+      chatbotId,
+      rating,
+    })
     .onConflictDoUpdate({
       target: messageRatings.messageId,
       set: { rating, updatedAt: new Date() },

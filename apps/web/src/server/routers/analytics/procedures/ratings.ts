@@ -5,14 +5,18 @@ import { eq, and, sql, gte } from "drizzle-orm";
 import { assertOwnedChatbot } from "@/server/queries/chatbot";
 import { getRangeStart, summarizeRatings } from "../helpers";
 
-/** Student ratings over the last 30 days: total, share helpful, and per day. */
+/**
+ * Student ratings given or changed in the last 30 days: total, share helpful,
+ * and per day. Bucketed by `updatedAt`, so a flipped rating counts on the day
+ * it was flipped, not the day it was first given.
+ */
 export const getRatingSummaryProcedure = protectedProcedure
   .input(z.object({ chatbotId: z.string().uuid() }))
   .query(async ({ ctx, input }) => {
     await assertOwnedChatbot(ctx, input.chatbotId);
 
     const startDate = getRangeStart("month");
-    const day = sql<string>`DATE(${messageRatings.createdAt})`;
+    const day = sql<string>`DATE(${messageRatings.updatedAt})`;
 
     const rows = await ctx.db
       .select({
@@ -24,7 +28,7 @@ export const getRatingSummaryProcedure = protectedProcedure
       .where(
         and(
           eq(messageRatings.chatbotId, input.chatbotId),
-          gte(messageRatings.createdAt, startDate),
+          gte(messageRatings.updatedAt, startDate),
         ),
       )
       .groupBy(day)

@@ -35,6 +35,7 @@ export default function SharedChatPage() {
     studyAttempts,
     ratings,
     onRateMessage,
+    unratableMessageIds,
   } = useChat(shareToken);
 
   // Error state - show immediately if there's an error
@@ -100,6 +101,7 @@ export default function SharedChatPage() {
             studyAttempts={studyAttempts}
             ratings={ratings}
             onRateMessage={onRateMessage}
+            unratableMessageIds={unratableMessageIds}
             brandingText={<PoweredBy modelId={chatbot.model} />}
           />
         </ErrorBoundary>

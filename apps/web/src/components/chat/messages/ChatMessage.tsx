@@ -17,7 +17,11 @@ import { AlertTriangle } from "lucide-react";
 import { groupSourcesByFile } from "@/lib/message-sources";
 import { SourceList } from "./source-list";
 import { extractText } from "@/lib/chat/ui-messages";
-import { isRatableMessage, type MessageRating } from "@/lib/message-rating";
+import {
+  isRatableMessage,
+  type MessageRating,
+  type RatingSaveResult,
+} from "@/lib/message-rating";
 import { MessageRatingButtons, MessageRatingIndicator } from "./message-rating";
 
 interface ChatMessageProps {
@@ -44,7 +48,7 @@ interface ChatMessageProps {
   onRate?: (
     messageId: string,
     rating: MessageRating | null,
-  ) => Promise<boolean>;
+  ) => Promise<RatingSaveResult>;
   /** The student's rating of this response, if any. */
   rating?: MessageRating;
 }

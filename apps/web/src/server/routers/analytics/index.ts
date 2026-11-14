@@ -8,7 +8,7 @@ import { getSessionLengthDistributionProcedure } from "./procedures/sessions";
 import { getCommonQuestionsProcedure } from "./procedures/insights";
 import { getLowConfidenceQueriesProcedure } from "./procedures/insights";
 import { getConversationsListProcedure } from "./procedures/conversations";
-import { getConversationMessagesProcedure } from "./procedures/conversations";
+import { getConversationMessagesProcedure } from "./procedures/conversation-messages";
 import { searchConversationsProcedure } from "./procedures/conversations";
 import { deleteConversationsProcedure } from "./procedures/conversations";
 import { exportConversationsProcedure } from "./procedures/export-conversations";

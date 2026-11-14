@@ -108,11 +108,21 @@ export const publicStudyResponseRateLimit = createLimiter({
   prefix: "@ratelimit/study-response-public",
 });
 
-// Rate limiter for response ratings (thumbs up / down) on public/shared links
-// 60 per minute per (IP, shareToken). No LLM cost; bounds write spam per source.
+// Rate limiters for response ratings (thumbs up / down) on public/shared links.
+// No LLM cost, and a session can only write one row per assistant message it
+// received, so the per-session cap is the real bound: 30 per minute per
+// (shareToken, sessionId). Keyed by session, not IP, so a classroom behind one
+// school IP does not share a single bucket.
 export const publicMessageRatingRateLimit = createLimiter({
-  window: [60, "1 m"],
+  window: [30, "1 m"],
   prefix: "@ratelimit/message-rating-public",
+});
+
+// Backstop per (IP, shareToken), since a caller picks its own session ids.
+// Set well above what a full classroom behind one IP produces.
+export const publicMessageRatingIpRateLimit = createLimiter({
+  window: [300, "1 m"],
+  prefix: "@ratelimit/message-rating-public-ip",
 });
 
 // Rate limiter for password reset requests
